@@ -17,7 +17,10 @@ async function bootstrap() {
   app.use('/uploads', express.static(UPLOAD_ROOT));
 
   app.enableCors({
-    origin: ['klk1.store', 'admin.klk1.store', 'https://klk1.store', 'https://admin.klk1.store'],
+    origin: [
+      'https://client.klk1.store',
+      'https://admin.klk1.store',
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
