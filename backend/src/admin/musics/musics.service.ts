@@ -33,7 +33,7 @@ import { buildCategoryTop5Query, buildRealtimeApiStatusQuery, buildRealtimeTopTr
 
 @Injectable()
 export class MusicsService implements OnModuleInit {
-  constructor(@Inject('DB') private readonly db: DB) {}
+  constructor(@Inject('DB') private readonly db: DB) { }
 
   // 모듈 초기화 시 파일 저장 디렉토리 생성
   async onModuleInit(): Promise<void> {
@@ -61,7 +61,7 @@ export class MusicsService implements OnModuleInit {
         .select({ id: music_categories.id, name: music_categories.name })
         .from(music_categories)
         .orderBy(music_categories.name);
-      
+
       return {
         categories: categories.map(cat => ({
           id: cat.id,
@@ -73,7 +73,7 @@ export class MusicsService implements OnModuleInit {
     }
   }
 
-  async findAll(findMusicsDto: FindMusicsDto): Promise<{
+  async findAll(findMusicsDto: any): Promise<{
     musics: any[];
     page: number;
     limit: number;
@@ -108,7 +108,7 @@ export class MusicsService implements OnModuleInit {
     const results = await this.db.execute(rawQuery);
 
     return {
-      musics: results.rows, 
+      musics: results.rows,
       page: p,
       limit: l
     };
@@ -120,7 +120,7 @@ export class MusicsService implements OnModuleInit {
     const { page = 1, limit = 20 } = query
     const { offset, page: p, limit: l } = normalizePagination(page, limit, 100)
 
-    const sortAllow = ['music_id','title','artist','category','grade','musicType','monthlyLimit','rewardPerPlay','usageRate','validPlays','earned','companiesUsing','lastUsedAt']
+    const sortAllow = ['music_id', 'title', 'artist', 'category', 'grade', 'musicType', 'monthlyLimit', 'rewardPerPlay', 'usageRate', 'validPlays', 'earned', 'companiesUsing', 'lastUsedAt']
     const { sortBy, order } = normalizeSort(query.sortBy, query.order, sortAllow)
 
     const orderSql: SQL = buildMusicRewardsOrderSql(sortBy, order)
@@ -165,7 +165,7 @@ export class MusicsService implements OnModuleInit {
         const b = v === true || v === 't' || v === 'true' || v === 1 || v === '1'
         return b ? 'Inst' : '일반'
       })(),
-      grade: Number(r.grade) as 0|1|2,
+      grade: Number(r.grade) as 0 | 1 | 2,
       validPlays: Number(r.valid_plays || 0),
       earned: Number(r.earned || 0),
       companiesUsing: Number(r.companies_using || 0),
@@ -266,97 +266,97 @@ export class MusicsService implements OnModuleInit {
     try {
       // 카테고리 존재하는지 확인
       const categoryExists = await this.db
-      .select({ id: music_categories.id, name: music_categories.name })
-      .from(music_categories)
-      .where(eq(music_categories.name, createMusicDto.category))
-      .limit(1);
+        .select({ id: music_categories.id, name: music_categories.name })
+        .from(music_categories)
+        .where(eq(music_categories.name, createMusicDto.category))
+        .limit(1);
 
-    if (categoryExists.length === 0) {
-      throw new Error(`카테고리를 찾을 수 없습니다.`);
-    }
+      if (categoryExists.length === 0) {
+        throw new Error(`카테고리를 찾을 수 없습니다.`);
+      }
 
       const categoryId = categoryExists[0].id;
       // file path 중복 확인  
       const duplicateMusic = await this.db.select().from(musics).where(eq(musics.file_path, createMusicDto.audioFilePath)).limit(1);
-      if(duplicateMusic.length > 0) {throw new Error('동일한 경로의 음원이 존재합니다.')}
-      
-        const newMusic =       await this.db.insert(musics).values({
-          file_path: createMusicDto.audioFilePath,
-          title: createMusicDto.title,
-          artist: createMusicDto.artist,
-          category_id: categoryId,
-          inst: createMusicDto.musicType === 'Inst',
-          release_date: createMusicDto.releaseDate ? createMusicDto.releaseDate : null,
-          duration_sec: createMusicDto.durationSec,
-          price_per_play: createMusicDto.priceMusicOnly.toString(),
-          lyrics_price: createMusicDto.priceLyricsOnly.toString(),
-          isrc: createMusicDto.isrc || null,
-          composer: createMusicDto.composer || null,
-          music_arranger: createMusicDto.arranger || null,
-          lyricist: createMusicDto.lyricist || null,
-          lyrics_text: createMusicDto.lyricsText || null,
-          cover_image_url: createMusicDto.coverImagePath || null,
-          lyrics_file_path: createMusicDto.lyricsFilePath || null,
-          total_valid_play_count: 0,
-          total_play_count: 0,
-          total_rewarded_amount: '0',
-          total_revenue: '0',
-          grade: createMusicDto.grade,
-          file_size_bytes: 0,
-          last_played_at: null
-        }).returning();
-        // 음원아이디 추출
-    const musicId = newMusic[0].id;
-    
-    // 리워드 생성 
-    const rewardData = {
-      music_id: musicId as any,
-      year_month: new Date().toISOString().slice(0, 7),
-      total_reward_count: createMusicDto.grade === 1 ? createMusicDto.maxPlayCount || 0 : 0,
-      remaining_reward_count: createMusicDto.grade === 1 ? createMusicDto.maxPlayCount || 0 : 0,
-      reward_per_play: createMusicDto.grade === 1 ? createMusicDto.rewardPerPlay.toString() : '0'
-    };
-    
-    await this.db.insert(monthly_music_rewards).values(rewardData);
+      if (duplicateMusic.length > 0) { throw new Error('동일한 경로의 음원이 존재합니다.') }
 
-    // 태그 생성
-    if (createMusicDto.tags && createMusicDto.tags.trim()) {
-      const tagArr = createMusicDto.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
-      
-      for (const tagText of tagArr) {
-        await this.db.insert(music_tags).values({
-          music_id: musicId,
-          text: tagText,
-          raw_tag_id: null,
-        });
-      }
-    }
-
-    // 성공 응답 반환
-    return {
-      message: '음원 등록 완료',
-      music: {
-        id: musicId,
+      const newMusic = await this.db.insert(musics).values({
+        file_path: createMusicDto.audioFilePath,
         title: createMusicDto.title,
         artist: createMusicDto.artist,
-        category: createMusicDto.category,
-        musicType: createMusicDto.musicType,
-        durationSec: createMusicDto.durationSec,
-        priceMusicOnly: createMusicDto.priceMusicOnly,
-        priceLyricsOnly: createMusicDto.priceLyricsOnly,
-
-        rewardPerPlay: createMusicDto.rewardPerPlay,
-        maxPlayCount: createMusicDto.maxPlayCount,
+        category_id: categoryId,
+        inst: createMusicDto.musicType === 'Inst',
+        release_date: createMusicDto.releaseDate ? createMusicDto.releaseDate : null,
+        duration_sec: createMusicDto.durationSec,
+        price_per_play: createMusicDto.priceMusicOnly.toString(),
+        lyrics_price: createMusicDto.priceLyricsOnly.toString(),
+        isrc: createMusicDto.isrc || null,
+        composer: createMusicDto.composer || null,
+        music_arranger: createMusicDto.arranger || null,
+        lyricist: createMusicDto.lyricist || null,
+        lyrics_text: createMusicDto.lyricsText || null,
+        cover_image_url: createMusicDto.coverImagePath || null,
+        lyrics_file_path: createMusicDto.lyricsFilePath || null,
+        total_valid_play_count: 0,
+        total_play_count: 0,
+        total_rewarded_amount: '0',
+        total_revenue: '0',
         grade: createMusicDto.grade,
-        audioFilePath: createMusicDto.audioFilePath
-      },
-      id: musicId
-    };
+        file_size_bytes: 0,
+        last_played_at: null
+      }).returning();
+      // 음원아이디 추출
+      const musicId = newMusic[0].id;
 
-  } catch (error) {
-    console.error('음원 등록 실패:', error);
-    throw new Error(`음원 등록 실패: ${error.message}`);
-  }
+      // 리워드 생성 
+      const rewardData = {
+        music_id: musicId as any,
+        year_month: new Date().toISOString().slice(0, 7),
+        total_reward_count: createMusicDto.grade === 1 ? createMusicDto.maxPlayCount || 0 : 0,
+        remaining_reward_count: createMusicDto.grade === 1 ? createMusicDto.maxPlayCount || 0 : 0,
+        reward_per_play: createMusicDto.grade === 1 ? createMusicDto.rewardPerPlay.toString() : '0'
+      };
+
+      await this.db.insert(monthly_music_rewards).values(rewardData);
+
+      // 태그 생성
+      if (createMusicDto.tags && createMusicDto.tags.trim()) {
+        const tagArr = createMusicDto.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+
+        for (const tagText of tagArr) {
+          await this.db.insert(music_tags).values({
+            music_id: musicId,
+            text: tagText,
+            raw_tag_id: null,
+          });
+        }
+      }
+
+      // 성공 응답 반환
+      return {
+        message: '음원 등록 완료',
+        music: {
+          id: musicId,
+          title: createMusicDto.title,
+          artist: createMusicDto.artist,
+          category: createMusicDto.category,
+          musicType: createMusicDto.musicType,
+          durationSec: createMusicDto.durationSec,
+          priceMusicOnly: createMusicDto.priceMusicOnly,
+          priceLyricsOnly: createMusicDto.priceLyricsOnly,
+
+          rewardPerPlay: createMusicDto.rewardPerPlay,
+          maxPlayCount: createMusicDto.maxPlayCount,
+          grade: createMusicDto.grade,
+          audioFilePath: createMusicDto.audioFilePath
+        },
+        id: musicId
+      };
+
+    } catch (error) {
+      console.error('음원 등록 실패:', error);
+      throw new Error(`음원 등록 실패: ${error.message}`);
+    }
   }
 
   async createCategory(dto: { name: string; description?: string }) {
@@ -442,7 +442,7 @@ export class MusicsService implements OnModuleInit {
       return { hasText: false, hasFile: false };
     }
 
-    const baseDir = process.env.LYRICS_BASE_DIR 
+    const baseDir = process.env.LYRICS_BASE_DIR
       ? path.resolve(process.env.LYRICS_BASE_DIR)
       : path.resolve(process.cwd(), 'lyrics');
     let relativePath = String(lyrics_file_path).replace(/^[/\\]+/, '');
@@ -573,7 +573,7 @@ export class MusicsService implements OnModuleInit {
     const validPlays = Number(row.valid_plays ?? 0)
     const rewardedPlays = Number(row.rewarded_plays ?? 0)
     const rewardRate = validPlays > 0 ? Math.round((rewardedPlays / validPlays) * 100) : 0
-    
+
     return {
       validPlays,
       totalPlays: Number(row.total_plays ?? 0),
@@ -625,7 +625,7 @@ export class MusicsService implements OnModuleInit {
           AND mp.created_at <= NOW()
       ) revenue_data
     `
-    
+
     const qPast = sql`
       ${cte}
       SELECT 
@@ -662,7 +662,7 @@ export class MusicsService implements OnModuleInit {
           AND mp.created_at <= mr.month_end
       ) revenue_data
     `
-    
+
     const res = await this.db.execute(current ? qCurrent : qPast)
     const row = (res.rows?.[0] as any) || {}
     const mtd = Number(row.mtd ?? 0)
@@ -713,7 +713,7 @@ export class MusicsService implements OnModuleInit {
     const q = buildCategoryTop5Query(y, m, tz, limit)
     const res = await this.db.execute(q)
     const rows = (res.rows || []) as any[]
-    
+
     const items: CategoryTop5ItemDto[] = rows.map((r: any) => ({
       category: r.category || '미분류',
       validPlays: Number(r.valid_plays || 0),
@@ -725,7 +725,7 @@ export class MusicsService implements OnModuleInit {
 
   async getRealtimeApiStatus(query: RealtimeApiStatusQueryDto): Promise<RealtimeApiStatusResponseDto> {
     const limit = Math.min(Math.max(query.limit ?? 5, 1), 20)
-    
+
     // music_plays 테이블에서 직접 데이터 조회
     const q = sql`
       SELECT 
@@ -753,10 +753,10 @@ export class MusicsService implements OnModuleInit {
       ORDER BY mp.created_at DESC
       LIMIT ${limit}
     `
-    
+
     const res = await this.db.execute(q)
     const rows = (res.rows || []) as any[]
-    
+
     const items: RealtimeApiStatusItemDto[] = rows.map((r: any) => ({
       status: r.status === 'success' ? 'success' : 'error',
       endpoint: r.endpoint || '/api/unknown',
@@ -771,7 +771,7 @@ export class MusicsService implements OnModuleInit {
 
   async getRealtimeApiCalls(query: RealtimeApiStatusQueryDto): Promise<RealtimeApiStatusResponseDto> {
     const limit = Math.min(Math.max(query.limit ?? 5, 1), 20)
-    
+
     // music_plays 테이블에서 직접 데이터 조회
     const q = sql`
       SELECT 
@@ -799,10 +799,10 @@ export class MusicsService implements OnModuleInit {
       ORDER BY mp.created_at DESC
       LIMIT ${limit}
     `
-    
+
     const res = await this.db.execute(q)
     const rows = (res.rows || []) as any[]
-    
+
     const items: RealtimeApiStatusItemDto[] = rows.map((r: any) => ({
       status: r.status === 'success' ? 'success' : 'error',
       endpoint: r.endpoint || '/api/unknown',
@@ -820,10 +820,10 @@ export class MusicsService implements OnModuleInit {
     const q = buildRealtimeTopTracksQuery(limit)
     const res = await this.db.execute(q)
     const rows = (res.rows || []) as any[]
-    
+
     // console.log(`[TopTracks] Fetching top ${limit} tracks based on 24h valid plays`)
     // console.log(`[TopTracks] Found ${rows.length} tracks`)
-    
+
     const items: RealtimeTopTracksItemDto[] = rows.map((r: any) => ({
       rank: Number(r.rank || 0),
       title: r.title || 'Unknown Track',
@@ -841,7 +841,7 @@ export class MusicsService implements OnModuleInit {
     const q = buildRealtimeTransactionsQuery(limit)
     const res = await this.db.execute(q)
     const rows = (res.rows || []) as any[]
-    
+
     const items: RealtimeTransactionsItemDto[] = rows.map((r: any) => ({
       timestamp: r.timestamp || '00:00:00',
       status: r.status === 'success' ? 'success' : r.status === 'pending' ? 'pending' : 'failed',
@@ -886,7 +886,7 @@ export class MusicsService implements OnModuleInit {
         const filename = `${timestamp}_${original}`;
         const abs = path.resolve(musicBaseDir, filename);
         await fs.writeFile(abs, file.buffer);
-        audioFilePath = filename; 
+        audioFilePath = filename;
       }
 
       if (files.lyrics && files.lyrics[0]) {
@@ -918,7 +918,7 @@ export class MusicsService implements OnModuleInit {
           }
         }
         await fs.writeFile(abs, outBuffer);
-        lyricsFilePath = filename; 
+        lyricsFilePath = filename;
       }
 
       if (files.cover && files.cover[0]) {
@@ -928,7 +928,7 @@ export class MusicsService implements OnModuleInit {
         const filename = `${timestamp}_${original}`;
         const abs = path.resolve(imagesBaseDir, filename);
         await fs.writeFile(abs, file.buffer);
-        coverImagePath = filename; 
+        coverImagePath = filename;
       }
 
       return { audioFilePath, lyricsFilePath, coverImagePath };
@@ -1061,7 +1061,7 @@ export class MusicsService implements OnModuleInit {
       await this.db.delete(musics).where(inArray(musics.id, ids));
       await this.cleanupOrphanCategories();
 
-      const message = ids.length === 1 
+      const message = ids.length === 1
         ? `음원 ID ${ids[0]} 삭제 완료`
         : `${ids.length}개 음원 일괄 삭제 완료`;
       return {
@@ -1081,7 +1081,7 @@ export class MusicsService implements OnModuleInit {
   async updateNextMonthRewards(musicId: number, dto: UpdateRewardDto) {
     const now = new Date();
     const y = now.getUTCFullYear();
-    const m = now.getUTCMonth(); 
+    const m = now.getUTCMonth();
     const current = new Date(Date.UTC(y, m, 1));
     const ym = `${current.getUTCFullYear()}-${String(current.getUTCMonth() + 1).padStart(2, '0')}`;
     const currentData = await this.db.execute(sql`
@@ -1089,14 +1089,14 @@ export class MusicsService implements OnModuleInit {
       FROM monthly_music_rewards
       WHERE music_id = ${musicId} AND year_month = ${ym}
     `);
-    
+
     console.log('조회된 데이터:', {
       musicId,
       yearMonth: ym,
       rowsCount: currentData.rows?.length || 0,
       rows: currentData.rows
     });
-    
+
     // 실제 사용량 계산 (music_plays에서 유효재생들의 use_price 합계)
     const usedCountResult = await this.db.execute(sql`
       SELECT COALESCE(SUM(use_price), 0) as used_count
@@ -1106,16 +1106,16 @@ export class MusicsService implements OnModuleInit {
         AND EXTRACT(YEAR FROM created_at) = ${parseInt(ym.split('-')[0])}
         AND EXTRACT(MONTH FROM created_at) = ${parseInt(ym.split('-')[1])}
     `);
-    
+
     const usedCount = Number((usedCountResult.rows?.[0] as any)?.used_count || 0);
-    
+
     let newRemainingCount = dto.totalRewardCount;
     if (dto.totalRewardCount > usedCount) {
       newRemainingCount = dto.totalRewardCount - usedCount;
     } else {
       newRemainingCount = 0;
     }
-    
+
     console.log('리워드 수정 로직:', {
       musicId,
       yearMonth: ym,
@@ -1123,7 +1123,7 @@ export class MusicsService implements OnModuleInit {
       newTotal: dto.totalRewardCount,
       newRemaining: newRemainingCount
     });
-    
+
     try {
       // 리워드 제거 처리
       if (dto.removeReward === true) {
