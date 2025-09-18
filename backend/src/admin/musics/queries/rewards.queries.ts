@@ -57,9 +57,9 @@ WITH month_range AS (
 plays AS (
   SELECT
     mp.music_id,
-    COUNT(*) FILTER (WHERE mp.is_valid_play = true) AS valid_plays,
-    COALESCE(SUM(CASE WHEN mp.is_valid_play = true THEN mp.reward_amount::numeric ELSE 0 END), 0) AS earned,
-    COUNT(DISTINCT CASE WHEN mp.is_valid_play = true THEN mp.using_company_id END) AS companies_using,
+    COUNT(*) FILTER (WHERE mp.is_valid_play = true AND mp.reward_code = '1') AS valid_plays,
+    COALESCE(SUM(CASE WHEN mp.is_valid_play = true AND mp.reward_code = '1' THEN mp.reward_amount::numeric ELSE 0 END), 0) AS earned,
+    COUNT(DISTINCT CASE WHEN mp.is_valid_play = true AND mp.reward_code = '1' THEN mp.using_company_id END) AS companies_using,
     MAX(mp.created_at) AS last_used_at
   FROM music_plays mp, month_range mr
   WHERE mp.created_at >= mr.month_start AND mp.created_at <= mr.month_end
@@ -104,15 +104,30 @@ export function buildMusicRewardsSummaryCountQuery(params: {
   musicType?: boolean
 }) {
   const { year, month, search, categoryId, grade, musicType } = params
+  const ym = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}`
+  
   const q = sql`
 WITH month_range AS (
   SELECT
     make_timestamptz(${year}, ${month}, 1, 0, 0, 0, 'Asia/Seoul') AS month_start,
     (make_timestamptz(${year}, ${month}, 1, 0, 0, 0, 'Asia/Seoul') + interval '1 month') - interval '1 second' AS month_end
+),
+plays AS (
+  SELECT
+    mp.music_id,
+    COUNT(*) FILTER (WHERE mp.is_valid_play = true AND mp.reward_code = '1') AS valid_plays,
+    COALESCE(SUM(CASE WHEN mp.is_valid_play = true AND mp.reward_code = '1' THEN mp.reward_amount::numeric ELSE 0 END), 0) AS earned,
+    COUNT(DISTINCT CASE WHEN mp.is_valid_play = true AND mp.reward_code = '1' THEN mp.using_company_id END) AS companies_using,
+    MAX(mp.created_at) AS last_used_at
+  FROM music_plays mp, month_range mr
+  WHERE mp.created_at >= mr.month_start AND mp.created_at <= mr.month_end
+  GROUP BY mp.music_id
 )
 SELECT COUNT(*) AS total
 FROM musics m
+LEFT JOIN plays p ON p.music_id = m.id
 LEFT JOIN music_categories mc ON mc.id = m.category_id
+LEFT JOIN monthly_music_rewards mmr ON mmr.music_id = m.id AND mmr.year_month = ${ym}
 WHERE 1=1
 ${search ? sql` AND (m.title ILIKE '%' || ${search} || '%' OR m.artist ILIKE '%' || ${search} || '%')` : sql``}
 ${typeof categoryId === 'number' && Number.isFinite(categoryId) ? sql` AND m.category_id = ${categoryId}` : sql``}

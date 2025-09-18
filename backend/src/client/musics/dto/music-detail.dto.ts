@@ -39,6 +39,8 @@ export class MusicDetailDto {
   @ApiProperty({ nullable: true }) price_per_play!: string | null;
 
   @ApiProperty() is_using!: boolean; // 현재 회사가 사용중인지
+  @ApiProperty({ type: Number, description: '가사 다운로드 누적 수', required: false })
+  lyrics_download_count?: number;  
 }
 
 export class UseMusicResponseDto {

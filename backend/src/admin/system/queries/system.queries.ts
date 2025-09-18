@@ -142,8 +142,6 @@ export function buildApiKeysQuery(dto: { search?: string; sortBy?: string; sortO
         WHEN latest_usage.latest_used_at IS NOT NULL 
         THEN 
           CASE 
-            WHEN latest_usage.latest_used_at > NOW() 
-            THEN '방금 전'
             WHEN EXTRACT(EPOCH FROM (NOW() - latest_usage.latest_used_at))/60 < 1
             THEN '방금 전'
             WHEN EXTRACT(EPOCH FROM (NOW() - latest_usage.latest_used_at))/60 < 60
@@ -152,7 +150,7 @@ export function buildApiKeysQuery(dto: { search?: string; sortBy?: string; sortO
             THEN ROUND(EXTRACT(EPOCH FROM (NOW() - latest_usage.latest_used_at))/3600) || '시간 전'
             ELSE ROUND(EXTRACT(EPOCH FROM (NOW() - latest_usage.latest_used_at))/86400) || '일 전'
           END
-        ELSE '사용 이력 없음'
+        ELSE '-'
       END as last_used,
       COALESCE(api_stats.total_calls, 0) as total_calls,
       COALESCE(api_stats.music_calls, 0) as music_calls,

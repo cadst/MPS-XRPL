@@ -1,16 +1,20 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ValidationPipe, ParseIntPipe } from '@nestjs/common';
-import { CompanyService } from './company.service';
-import { CreateCompanyDto } from './dto/create-company.dto';
-import { UpdateCompanyDto } from './dto/update-company.dto';
-import { RewardsSummaryQueryDto } from './dto/rewards-summary.query.dto';
-import { RewardsDetailQueryDto } from './dto/rewards-detail.query.dto';
-import { CompanyTotalStatsQueryDto } from './dto/company-stats.dto';
-import { RenewalStatsQueryDto } from './dto/renewal-stats.dto';
-import { HourlyPlaysQueryDto } from './dto/hourly-plays.dto';
-import { TierDistributionQueryDto } from './dto/tier-distribution.dto';
-import { RevenueCalendarQueryDto } from './dto/revenue-calendar.dto';
-import { RevenueTrendsQueryDto } from './dto/revenue-trends.dto';
-import { RevenueCompaniesQueryDto } from './dto/revenue-companies.dto';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ValidationPipe, ParseIntPipe } from '@nestjs/common'
+import { CompanyService } from './company.service'
+
+// DTOs
+import {
+  CreateCompanyDto,
+  UpdateCompanyDto,
+  RewardsSummaryQueryDto,
+  RewardsDetailQueryDto,
+  CompanyTotalStatsQueryDto,
+  RenewalStatsQueryDto,
+  HourlyPlaysQueryDto,
+  TierDistributionQueryDto,
+  RevenueCalendarQueryDto,
+  RevenueTrendsQueryDto,
+  RevenueCompaniesQueryDto
+} from './dto'
 
 @Controller('/admin/companies')
 export class CompanyController {

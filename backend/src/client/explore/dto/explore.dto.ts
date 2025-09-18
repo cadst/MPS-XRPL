@@ -1,46 +1,42 @@
-export type CompanyGrade = 'free'|'standard'|'business';
-export type TrackFormat = 'FULL'|'INSTRUMENTAL';
+export type ExploreTrackDto = {
+  id: number;
+  title: string;
+  artist: string | null;
+  cover_image_url: string | null;
+  format: 'FULL' | 'INSTRUMENTAL';
+  price_per_play: number | null;
+  has_lyrics: boolean;
+  category_id?: number | null;   
+  category_name?: string | null; 
+  grade_required: 0 | 1 | 2;             // 0=무료, 1/2=구독
+  can_use: boolean;                      // 로그인+등급 통과 시 true
+  access_type: 'FREE' | 'SUBSCRIPTION';  // 라벨
+  locked: boolean;                       // 잠금 오버레이/클릭 차단
+  reason: 'OK' | 'LOGIN_REQUIRED' | 'SUBSCRIPTION_REQUIRED';
 
-export class RewardInfoDto {
-  reward_one: string | null;   // numeric → string
-  reward_total: string | null; // total_count * reward_one
-  reward_remain: string | null;// remain_count * reward_one
-  total_count: number | null;
-  remain_count: number | null;
-}
+  reward: {
+    reward_one: number | null;
+    reward_total: number | null;
+    reward_remain: number | null;
+    total_count: number | null;
+    remain_count: number | null;
+  };
+  reward_type: 'REWARD' | 'NO_REWARD';   // 이번 달 리워드 트랙인지
+  reward_active: boolean;                // 남은 리워드 > 0
 
-export class ExploreTrackDto {
-    access!: {
-        is_guest: boolean;                 // 게스트 여부
-        requires_login: boolean;           // 액션시 로그인 필요
-        can_use: boolean;                  // 로그인했고 등급도 통과?
-        reason: 'OK'|'LOGIN_REQUIRED'|'SUBSCRIPTION_REQUIRED';
-      };
-  id!: number;
-  title!: string;
-  artist!: string;
-  cover_image_url?: string | null;
+  popularity?: number | null;
+  created_at: string | Date;
+};
 
-  format!: TrackFormat;     // FULL | INSTRUMENTAL
-  has_lyrics!: boolean;     // 가사 존재 여부
+export type ExploreSectionDto = {
+  key: 'featured' | 'news' | 'charts' | 'moods';
+  title: string;
+  items: ExploreTrackDto[];
+};
 
-  grade_required!: 0|1|2;   // 0=모두, 1/2=구독 필요
-  can_use!: boolean;        // 회사 등급 기준 사용 가능
-
-  reward!: RewardInfoDto;   // 이번 달 리워드 요약
-  popularity!: number;      // 최근 30일 유효재생 수
-  created_at!: string;
-}
-
-export class ExploreSectionDto {
-  key!: string;
-  title!: string;
-  items!: ExploreTrackDto[];
-}
-
-export class ExploreSectionsDto {
-  featured!: ExploreTrackDto[];
-  news!: ExploreSectionDto;
-  charts!: ExploreSectionDto;
-  moods!: ExploreSectionDto;
-}
+export type ExploreSectionsDto = {
+  featured: ExploreSectionDto;
+  news: ExploreSectionDto;
+  charts: ExploreSectionDto;
+  moods: ExploreSectionDto;
+};

@@ -3,17 +3,24 @@ import { ConfigModule } from '@nestjs/config';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { JwtModule } from '@nestjs/jwt';
 import { join } from 'path';
-
+import { ScheduleModule } from '@nestjs/schedule';
 import biznoConfig from '../bizno.config';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 // import { AdminModule } from './admin/admin.module';
+import { DashboardModule } from './admin/dashboard/dashboard.module';
 import { ClientModule } from './client/client.module';
 import { MeModule } from './client/me/me.module';
 import { DbModule } from './db/db.module';
 import { ExploreModule } from './client/explore/explore.module';
 import { AdminModule } from './admin/admin.module';
+import { TagsModule } from './client/tags/tags.module';
+
+import { MusicModule } from './music/music.module';
+import { RecordModule } from './record/record.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
+import { TestModule } from './test/test.module';
 
 @Module({
   imports: [
@@ -39,13 +46,21 @@ import { AdminModule } from './admin/admin.module';
       signOptions: { expiresIn: '30d' },
     }),
 
+    ScheduleModule.forRoot({
+      timezone: 'Asia/Seoul',
+    } as any),
+
     AdminModule,
+    DashboardModule,
     ClientModule,
     MeModule,
     DbModule,
-
-    // Explore 모듈 등록
     ExploreModule,
+    MusicModule,
+    RecordModule,
+    SchedulerModule,
+    TestModule,
+    TagsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

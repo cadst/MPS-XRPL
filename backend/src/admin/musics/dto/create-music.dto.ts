@@ -1,4 +1,5 @@
 import { IsString, IsNumber, IsOptional, IsEnum, IsDateString, Min, IsBoolean, MinLength } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class CreateMusicDto {
     @IsString()
@@ -61,9 +62,10 @@ export class CreateMusicDto {
     rewardPerPlay: number;
 
     @IsOptional()
+    @Transform(({ value }) => value === '' ? null : value)
     @IsNumber()
     @Min(0)
-    maxPlayCount?: number;
+    maxPlayCount?: number | null;
 
     @IsOptional()
     @IsBoolean()

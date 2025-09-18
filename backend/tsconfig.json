@@ -21,9 +21,17 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
-
-    "types": ["node"],                     
-    "typeRoots": ["./node_modules/@types"],
+    "types": [
+      "node"
+    ],
+    "typeRoots": [
+      "./node_modules/@types"
+    ]
   },
-  "include": ["src/**/*", "test/**/*", "drizzle.config.ts", "scripts/**/*"]
+  "include": [
+    "src/**/*",
+    "test/**/*",
+    "drizzle.config.ts",
+    "scripts/**/*"
+  ]
 }

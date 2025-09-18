@@ -11,7 +11,7 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly companies: CompaniesService,
-  ) {}
+  ) { }
 
   @Post('login')
   @HttpCode(200)
@@ -57,5 +57,25 @@ export class AuthController {
       homepage_url: (profile as any).homepage_url ?? null,
       created_at: (profile as any).created_at ?? null,
     };
+  }
+  @Post('refresh')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const isProd = process.env.NODE_ENV === 'production';
+    const authed = req.user as any;         // JwtAuthGuard가 파싱한 기존 토큰
+    const company = await this.companies.getProfileById(authed.sub); // DB에서 최신 상태
+
+    const { accessToken, expiresIn, company: mini } = await this.auth.issueAccessTokenFromCompany(company);
+
+    res.cookie('mps_at', accessToken, {
+      httpOnly: true,
+      sameSite: isProd ? 'none' : 'lax',
+      secure: isProd,
+      path: '/',
+      maxAge: expiresIn * 1000,
+    });
+
+    return { ok: true, company: mini, expiresIn };
   }
 }

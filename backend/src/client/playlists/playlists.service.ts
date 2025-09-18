@@ -1,10 +1,30 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+// apps/backend/src/client/playlists/playlists.service.ts
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  Logger,
+} from '@nestjs/common';
 import { sql, inArray, eq, and } from 'drizzle-orm';
-import { playlists, playlistItems, musics } from '../../db/schema.introspected';
+import { playlists, playlist_items as playlistItems, musics } from '../../db/schema';
 
 @Injectable()
 export class PlaylistService {
   constructor(@Inject('DB') private readonly db: any) {}
+  private readonly logger = new Logger(PlaylistService.name);
+
+  private logStart(tag: string, data?: any) {
+    this.logger.log(`[${tag}] start ${data ? JSON.stringify(data) : ''}`);
+  }
+  private logOk(tag: string, data?: any) {
+    this.logger.log(`[${tag}] ok ${data ? JSON.stringify(data) : ''}`);
+  }
+  private logError(tag: string, e: any) {
+    const msg = e?.message || e;
+    this.logger.error(`[${tag}] error: ${msg}`);
+  }
 
   /** execute() 결과를 배열로 정규화 */
   private rows<T = any>(ret: any): T[] {
@@ -16,35 +36,68 @@ export class PlaylistService {
     return r[0];
   }
 
+  /** 내 플레이리스트 소유 여부 확인 */
   private async assertOwn(companyId: number, playlistId: number) {
+    const pid = Number(playlistId);
     const [row] = await this.db
-      .select({ id: playlists.id, companyId: playlists.companyId })
+      .select({
+        id: playlists.id,
+        companyId: playlists.company_id,
+      })
       .from(playlists)
-      .where(eq(playlists.id, BigInt(playlistId))) // playlists.id: bigint
+      .where(eq(playlists.id, pid))
       .limit(1);
 
     if (!row) throw new NotFoundException('Playlist not found');
-    if (Number(row.companyId) !== companyId) throw new ForbiddenException('Not your playlist');
+    if (Number(row.companyId) !== companyId) {
+      throw new ForbiddenException('Not your playlist');
+    }
   }
 
+  /** (공통) UNIQUE 없이 중복 방지 삽입: VALUES + NOT EXISTS + RETURNING */
+  private async insertPlaylistItemsNoUnique(tx: any, pid: number, ids: number[]) {
+    if (!ids.length) return 0;
+
+    // (pid, mid) 튜플들
+    const pairs = ids.map((m) => sql`(${pid}::bigint, ${m}::bigint)`);
+
+    const inserted = await tx.execute(sql`
+      INSERT INTO playlist_items (playlist_id, music_id, added_at)
+      SELECT v.pid, v.mid, now()
+      FROM (VALUES ${sql.join(pairs, sql`, `)}) AS v(pid, mid)
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM playlist_items pi
+        WHERE pi.playlist_id = v.pid
+          AND pi.music_id = v.mid
+      )
+      RETURNING id
+    `);
+
+    return this.rows(inserted).length; // 실제 삽입된 행 수
+  }
+
+  /** 목록 */
   async list(companyId: number) {
     const raw = await this.db.execute(sql`
       SELECT
-        p.id                AS id,        -- bigint
+        p.id                AS id,
         p.name              AS name,
-        COALESCE(cnt.cnt,0) AS count,     -- int
-        cov.cover_url       AS cover      -- text|null
+        COALESCE(cnt.cnt,0) AS count,
+        cov.cover_url       AS cover
       FROM playlists p
       LEFT JOIN (
         SELECT playlist_id, COUNT(*) AS cnt
-        FROM playlist_items GROUP BY playlist_id
+          FROM playlist_items
+         GROUP BY playlist_id
       ) cnt ON cnt.playlist_id = p.id
       LEFT JOIN LATERAL (
         SELECT m.cover_image_url AS cover_url
-        FROM playlist_items pi JOIN musics m ON m.id = pi.music_id
-        WHERE pi.playlist_id = p.id
-        ORDER BY pi.added_at ASC, pi.id ASC
-        LIMIT 1
+          FROM playlist_items pi
+          JOIN musics m ON m.id = pi.music_id
+         WHERE pi.playlist_id = p.id
+         ORDER BY pi.added_at ASC, pi.id ASC
+         LIMIT 1
       ) cov ON TRUE
       WHERE p.company_id = ${companyId}
       ORDER BY p.created_at DESC, p.id DESC
@@ -58,12 +111,14 @@ export class PlaylistService {
     }));
   }
 
+  /** 상세(메타) */
   async detail(companyId: number, playlistId: number) {
     await this.assertOwn(companyId, playlistId);
 
     const raw = await this.db.execute(sql`
       SELECT p.id::bigint AS id, p.name, p.created_at, p.updated_at
-      FROM playlists p WHERE p.id = ${playlistId}::bigint
+        FROM playlists p
+       WHERE p.id = ${Number(playlistId)}::bigint
     `);
     const row = this.firstRow<any>(raw);
     if (!row) throw new NotFoundException('Playlist not found');
@@ -76,6 +131,7 @@ export class PlaylistService {
     };
   }
 
+  /** 트랙들 */
   async tracks(companyId: number, playlistId: number) {
     await this.assertOwn(companyId, playlistId);
 
@@ -89,10 +145,10 @@ export class PlaylistService {
         COALESCE(m.duration_sec,0)   AS "durationSec"
       FROM playlist_items pi
       JOIN musics m ON m.id = pi.music_id
-      WHERE pi.playlist_id = ${playlistId}::bigint
+      WHERE pi.playlist_id = ${Number(playlistId)}::bigint
       ORDER BY pi.added_at ASC, pi.id ASC
     `);
-    // 프론트 Track[] 모양으로 보장
+
     return this.rows(raw).map((r: any) => ({
       id: Number(r.id),
       title: String(r.title ?? ''),
@@ -103,166 +159,207 @@ export class PlaylistService {
     }));
   }
 
+  /** 트랙 전체 교체 (모두 지우고 다시 넣기) */
   async replaceTracks(companyId: number, playlistId: number, trackIds: number[]) {
     await this.assertOwn(companyId, playlistId);
     if (!Array.isArray(trackIds)) throw new BadRequestException('trackIds must be an array');
 
-    await this.db.transaction(async (tx: any) => {
-      // playlist_items.playlist_id 는 number 매핑일 가능성 높음 → Number 사용
-      await tx.delete(playlistItems).where(eq(playlistItems.playlistId, Number(playlistId)));
+    const pid = Number(playlistId);
 
+    await this.db.transaction(async (tx: any) => {
+      await tx.delete(playlistItems).where(eq(playlistItems.playlist_id, pid));
+
+      let added = 0;
       if (trackIds.length) {
-        // musics.id 가 number 매핑이면 Number로 맞추세요 (BigInt 아님)
         const valid = await tx
           .select({ id: musics.id })
           .from(musics)
-          .where(inArray(musics.id, trackIds.map(BigInt)));
+          .where(inArray(musics.id, trackIds.map(Number)));
 
         const ids = this.rows(valid).map((v: any) => Number(v.id));
         if (ids.length) {
-          await tx.execute(sql`
-            INSERT INTO playlist_items (playlist_id, music_id, added_at)
-            SELECT ${playlistId}::bigint, m_id::bigint, now()
-            FROM unnest(${ids}::bigint[]) AS m_id
-            ON CONFLICT (playlist_id, music_id) DO NOTHING
-          `);
+          added = await this.insertPlaylistItemsNoUnique(tx, pid, ids);
         }
       }
 
-      // playlists.id 는 bigint 매핑 → BigInt 사용
       await tx.update(playlists)
-        .set({ updatedAt: sql`now()` as any })
-        .where(eq(playlists.id, BigInt(playlistId)));
+        .set({ updated_at: sql`now()` as any })
+        .where(eq(playlists.id, pid));
+      this.logger.debug(`[replaceTracks] replaced count=${added}`);
     });
 
     const cntRaw = await this.db.execute(sql`
-      SELECT COUNT(*)::int AS count FROM playlist_items WHERE playlist_id = ${playlistId}::bigint
+      SELECT COUNT(*)::int AS count
+        FROM playlist_items
+       WHERE playlist_id = ${pid}::bigint
     `);
     const cntRow = this.firstRow<{ count: number }>(cntRaw);
-    return { playlistId, count: Number(cntRow?.count ?? 0) };
+    return { playlistId: pid, count: Number(cntRow?.count ?? 0) };
   }
+
+  /** 선택 트랙 삭제 */
   async removeTracks(companyId: number, playlistId: number, trackIds: number[]) {
     await this.assertOwn(companyId, playlistId);
     if (!Array.isArray(trackIds) || trackIds.length === 0) {
       throw new BadRequestException('trackIds required');
     }
-  
-    const pid = Number(playlistId); // ← number 로 통일
-  
+
+    const pid = Number(playlistId);
+
     return this.db.transaction(async (tx: any) => {
-      // 1) 선택 트랙 삭제
       await tx
         .delete(playlistItems)
         .where(
           and(
-            eq(playlistItems.playlistId, pid),
-            inArray(playlistItems.musicId, trackIds.map(Number)), // musicId도 number면 Number로
+            eq(playlistItems.playlist_id, pid),
+            inArray(playlistItems.music_id, trackIds.map(Number)),
           ),
         );
-  
-      // 2) 남은 곡 수 조회
+
       const [{ count }] = await tx
         .select({ count: sql<number>`cast(count(*) as int)` })
         .from(playlistItems)
-        .where(eq(playlistItems.playlistId, pid));
-  
-      // 3) 0이면 플레이리스트도 삭제 (soft delete면 update로 대체)
+        .where(eq(playlistItems.playlist_id, pid));
+
       let playlistDeleted = false;
       if ((count ?? 0) === 0) {
-        await tx.delete(playlists).where(eq(playlists.id, BigInt(pid))); // playlists.id도 number 타입일 때
+        await tx.delete(playlists).where(eq(playlists.id, pid));
         playlistDeleted = true;
       }
-  
+
       return { playlistId: pid, count: count ?? 0, playlistDeleted };
     });
   }
-  
+
+  /** 생성 (선택 초기 트랙 포함 가능) */
   async create(companyId: number, dto: { name: string; trackIds?: number[] }) {
     const name = dto.name?.trim();
     if (!name) throw new BadRequestException('name required');
 
     return this.db.transaction(async (tx: any) => {
-      // 1) 플레이리스트 생성 (playlists.id: bigint)
       const inserted = await tx
         .insert(playlists)
         .values({
-          companyId,                // 스키마 타입 number/bigint에 맞춰 자동 매핑
+          company_id: companyId,
           name,
-          createdAt: sql`now()` as any,
-          updatedAt: sql`now()` as any,
+          created_at: sql`now()` as any,
+          updated_at: sql`now()` as any,
         })
         .returning({ id: playlists.id });
 
-      const newIdBig = inserted?.[0]?.id as bigint;
-      if (newIdBig === undefined || newIdBig === null) {
+      const newIdNum = Number(inserted?.[0]?.id);
+      if (!Number.isFinite(newIdNum)) {
         throw new BadRequestException('failed to create playlist');
       }
-      const newIdNum = Number(newIdBig);
 
-      // 2) 초기 트랙이 있으면 유효한 음악만 삽입
       if (dto.trackIds?.length) {
-        // musics.id가 bigint라면 BigInt로 비교
         const valid = await tx
           .select({ id: musics.id })
           .from(musics)
-          .where(inArray(musics.id, dto.trackIds.map(BigInt)));
+          .where(inArray(musics.id, dto.trackIds.map(Number)));
 
-        const musicIdsBig = valid.map((v: any) => v.id as bigint);
-        if (musicIdsBig.length) {
-          await tx.execute(sql`
-            INSERT INTO playlist_items (playlist_id, music_id, added_at)
-            SELECT ${newIdBig}::bigint, m_id::bigint, now()
-            FROM unnest(${musicIdsBig}::bigint[]) AS m_id
-            ON CONFLICT (playlist_id, music_id) DO NOTHING
-          `);
+        const musicIds = valid.map((v: any) => Number(v.id));
+        if (musicIds.length) {
+          const added = await this.insertPlaylistItemsNoUnique(tx, newIdNum, musicIds);
+          this.logger.debug(`[create] initial insert count=${added}`);
         }
       }
 
-      // 3) 생성 결과 반환(프론트 카드용 포맷)
       return {
         id: newIdNum,
         name,
-        count: dto.trackIds?.length ? dto.trackIds.length : 0,
+        count: dto.trackIds?.length ? dto.trackIds.length : 0, // 실제 inserted 수로 바꾸고 싶으면 위 added 사용
         cover: null as string | null,
       };
     });
   }
-  
 
+  /** 삭제 */
   async remove(companyId: number, playlistId: number) {
     await this.assertOwn(companyId, playlistId);
+    const pid = Number(playlistId);
+
     await this.db.transaction(async (tx: any) => {
-      await tx.delete(playlistItems).where(eq(playlistItems.playlistId, Number(playlistId)));
-      await tx.delete(playlists).where(eq(playlists.id, BigInt(playlistId)));
+      await tx.delete(playlistItems).where(eq(playlistItems.playlist_id, pid));
+      await tx.delete(playlists).where(eq(playlists.id, pid));
     });
+
     return { deleted: true };
   }
 
+  /** 사용(선택 없으면 전곡) */
   async use(
     companyId: number,
     playlistId: number,
-    dto: { trackIds?: number[]; useCase?: 'full'|'intro'|'lyrics' },
+    dto: { trackIds?: number[]; useCase?: 'full' | 'intro' | 'lyrics' },
   ) {
     await this.assertOwn(companyId, playlistId);
 
-    // 선택 ids 없으면 플레이리스트 전체 조회
-    const baseIds = dto.trackIds?.length
-      ? dto.trackIds
-      : this.rows(
-          await this.db
-            .select({ id: playlistItems.musicId })
-            .from(playlistItems)
-            .where(eq(playlistItems.playlistId, Number(playlistId)))
-        ).map((r: any) => Number(r.id));
+    const pid = Number(playlistId);
+    const baseIds =
+      dto.trackIds?.length
+        ? dto.trackIds.map(Number)
+        : this.rows(
+            await this.db
+              .select({ id: playlistItems.music_id })
+              .from(playlistItems)
+              .where(eq(playlistItems.playlist_id, pid)),
+          ).map((r: any) => Number(r.id));
 
     if (!baseIds.length) return { count: 0 };
 
-    // 유효한 music만 필터
     const found = await this.db
       .select({ id: musics.id })
       .from(musics)
-      .where(inArray(musics.id, baseIds.map(BigInt)));
+      .where(inArray(musics.id, baseIds));
 
     return { count: this.rows(found).length };
+  }
+
+  /** 트랙 추가 */
+  async addTracks(companyId: number, playlistId: number, trackIds: number[]) {
+    this.logStart('addTracks', { companyId, playlistId, trackIds });
+    await this.assertOwn(companyId, playlistId);
+    if (!Array.isArray(trackIds) || trackIds.length === 0) {
+      throw new BadRequestException('trackIds required');
+    }
+
+    const pid = Number(playlistId);
+    const idsReq = trackIds.map(Number);
+
+    try {
+      const ret = await this.db.transaction(async (tx: any) => {
+        const found = await tx
+          .select({ id: musics.id })
+          .from(musics)
+          .where(inArray(musics.id, idsReq));
+
+        const ids = this.rows(found).map((r: any) => Number(r.id));
+        this.logger.debug(`[addTracks] validIds=${JSON.stringify(ids)}`);
+
+        let insertedCount = 0;
+        if (ids.length) {
+          insertedCount = await this.insertPlaylistItemsNoUnique(tx, pid, ids);
+        }
+
+        await tx
+          .update(playlists)
+          .set({ updated_at: sql`now()` as any })
+          .where(eq(playlists.id, pid));
+
+        const [{ count }] = await tx
+          .select({ count: sql<number>`cast(count(*) as int)` })
+          .from(playlistItems)
+          .where(eq(playlistItems.playlist_id, pid));
+
+        return { playlistId: pid, added: insertedCount, count: count ?? 0 };
+      });
+
+      this.logOk('addTracks', ret);
+      return ret;
+    } catch (e) {
+      this.logError('addTracks', e);
+      throw e;
+    }
   }
 }

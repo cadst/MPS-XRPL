@@ -27,14 +27,14 @@ type VerifyResp = {
 @Injectable()
 export class CompaniesService {
   private readonly logger = new Logger(CompaniesService.name);
-  
+
   constructor(
     private readonly repo: CompaniesRepository,
     private readonly odcloud: OdcloudClient,
     private readonly config: ConfigService,
     private readonly apiKeyUtil: ApiKeyUtil,
     private readonly blockchainService: BlockchainService,
-  ) {}
+  ) { }
 
   private normalizeBizno(s: string) {
     const n = (s ?? '').replace(/[^0-9]/g, '').trim();
@@ -43,9 +43,9 @@ export class CompaniesService {
 
   private isBiznoChecksumOk(s10: string) {
     if (!/^\d{10}$/.test(s10)) return false;
-    const w = [1,3,7,1,3,7,1,3,5], d = s10.split('').map(Number);
-    let sum = 0; for (let i=0;i<9;i++) sum += d[i]*w[i];
-    sum += Math.floor((d[8]*5)/10);
+    const w = [1, 3, 7, 1, 3, 7, 1, 3, 5], d = s10.split('').map(Number);
+    let sum = 0; for (let i = 0; i < 9; i++) sum += d[i] * w[i];
+    sum += Math.floor((d[8] * 5) / 10);
     return ((10 - (sum % 10)) % 10) === d[9];
   }
 
@@ -275,19 +275,22 @@ export class CompaniesService {
 
     return { ok, mode, source, business_number: bizno, reason, tax_type: taxType };
   }
-  
-  async regenerateApiKey(companyId: number | string) {
-  const id = typeof companyId === 'string' ? parseInt(companyId, 10) : companyId; 
-  const { key, last4, kid, version, hash } = this.apiKeyUtil.generate('live');
 
-  await this.repo.updateApiKeyByCompanyId(id, {
-    api_key_hash: hash,
-    api_key_id: kid,          
-    api_key_last4: last4,
-    api_key_version: version,
-  });
-  
-  return { api_key: key, last4 };
+  async regenerateApiKey(companyId: number | string) {
+    const id = typeof companyId === 'string' ? parseInt(companyId, 10) : companyId;
+    // 임시 복구: 레거시 방식 (random hex + sha256 고정 해시)
+    const rawApiKey = randomBytes(32).toString('hex');
+    const api_key_hash = createHash('sha256').update(rawApiKey).digest('hex');
+
+    await this.repo.updateApiKeyByCompanyId(id, {
+      api_key_hash,
+      // ApiKeyUtil 기반 추가 메타 컬럼은 임시복구 경로에서는 미사용
+      api_key_id: undefined,
+      api_key_last4: undefined,
+      api_key_version: undefined,
+    });
+
+    return { api_key: rawApiKey, last4: rawApiKey.slice(-4) };
   }
 
   /**

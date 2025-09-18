@@ -18,7 +18,7 @@ const TZ = 'Asia/Seoul';
 @Injectable()
 export class MeService {
   private readonly logger = new Logger(MeService.name);
-  constructor(@Inject('DB') private readonly db: any) {}
+  constructor(@Inject('DB') private readonly db: any) { }
 
   private PLAN_PRICE: Record<'standard' | 'business', number> = {
     standard: 19000,
@@ -104,7 +104,7 @@ export class MeService {
     const [usingCountRow, usingRows] = await Promise.all([usingCountP, usingListP]);
 
     const earned = Number(company?.total_rewards_earned ?? 0);
-    const used   = Number(company?.total_rewards_used ?? 0);
+    const used = Number(company?.total_rewards_used ?? 0);
     const rewardBalance = Math.max(0, earned - used);
 
     const today = dayjs();
@@ -122,38 +122,38 @@ export class MeService {
     return {
       company: company
         ? {
-            id: Number(company.id),
-            name: company.name,
-            grade: company.grade,
-            ceo_name: company.ceo_name ?? null,
-            phone: company.phone ?? null,
-            homepage_url: company.homepage_url ?? null,
-            profile_image_url: company.profile_image_url ?? null,
-            smart_account_address: company.smart_account_address ?? null,
-            total_rewards_earned: earned,
-            total_rewards_used: used,
-            reward_balance: rewardBalance,
-          }
+          id: Number(company.id),
+          name: company.name,
+          grade: company.grade,
+          ceo_name: company.ceo_name ?? null,
+          phone: company.phone ?? null,
+          homepage_url: company.homepage_url ?? null,
+          profile_image_url: company.profile_image_url ?? null,
+          smart_account_address: company.smart_account_address ?? null,
+          total_rewards_earned: earned,
+          total_rewards_used: used,
+          reward_balance: rewardBalance,
+        }
         : null,
 
       subscription: sub
         ? {
-            plan: sub.tier,
-            status: end && end.isAfter(today) ? 'active' : 'none',
-            start_date: sub.start_date,
-            end_date: sub.end_date,
-            next_billing_at: sub.end_date ?? null,
-            remaining_days: remainingDays,
-            reserved_rewards_next_payment: reservedNext,
-            max_usable_next_payment: maxUsableNextPayment,
-          }
+          plan: sub.tier,
+          status: end && end.isAfter(today) ? 'active' : 'none',
+          start_date: sub.start_date,
+          end_date: sub.end_date,
+          next_billing_at: sub.end_date ?? null,
+          remaining_days: remainingDays,
+          reserved_rewards_next_payment: reservedNext,
+          max_usable_next_payment: maxUsableNextPayment,
+        }
         : {
-            plan: 'free',
-            status: 'none',
-            remaining_days: null,
-            reserved_rewards_next_payment: 0,
-            max_usable_next_payment: 0,
-          },
+          plan: 'free',
+          status: 'none',
+          remaining_days: null,
+          reserved_rewards_next_payment: 0,
+          max_usable_next_payment: 0,
+        },
 
       api_key: { last4: null },
 
@@ -357,7 +357,7 @@ export class MeService {
       .where(eq(company_subscriptions.company_id, companyId as any))
       .orderBy(
         (sel as any).created_at ? desc((company_subscriptions as any).created_at)
-                                : desc(company_subscriptions.start_date),
+          : desc(company_subscriptions.start_date),
         desc(company_subscriptions.id),
       )
       .limit(50);
@@ -416,7 +416,7 @@ export class MeService {
       ${musicFilter}
       ORDER BY m.id
     `);
-    const musicRows: Array<{ music_id: number; title: string|null; cover_image_url: string|null }> =
+    const musicRows: Array<{ music_id: number; title: string | null; cover_image_url: string | null }> =
       (musicsRes as any).rows ?? [];
 
     if (musicRows.length === 0) {
@@ -553,45 +553,37 @@ export class MeService {
     const limit = Number(params.limit ?? 20);
     if (!companyId || !musicId) throw new BadRequestException('companyId/musicId missing');
     const offset = (page - 1) * limit;
-  
+
     // 총 개수
     const cntRes = await this.db.execute(sql`
-      SELECT COUNT(*)::text AS c
-      FROM ${music_plays} p
-      WHERE p.using_company_id = ${companyId} AND p.music_id = ${musicId}
-    `);
+    SELECT COUNT(*)::text AS c
+    FROM ${music_plays} p
+    WHERE p.using_company_id = ${companyId} AND p.music_id = ${musicId}
+  `);
     const total = Number((cntRes as any).rows?.[0]?.c ?? '0');
-  
-    // 리스트: p.meta 제거 → NULL로 대체
+
+    // 리스트: is_valid는 rewards와 무관하게 p.is_valid_play만 사용
     const listRes = await this.db.execute(sql`
-      SELECT
-        p.id AS play_id,
-        to_char(timezone(${TZ}, p.created_at), 'YYYY-MM-DD HH24:MI') AS played_at,
-        CASE
-          WHEN r.id IS NOT NULL
-           AND r.status = ANY(${sql`ARRAY['pending'::reward_status,'successed'::reward_status]`})
-          THEN TRUE ELSE FALSE
-        END AS is_valid,
-        NULL::jsonb AS meta,                    -- ⬅⬅⬅ 여기!
-        r.id   AS reward_id,
-        r.reward_code,
-        r.amount::text AS amount,
-        r.status
-      FROM ${music_plays} p
-      LEFT JOIN ${rewards} r
-        ON r.play_id = p.id
-       AND r.reward_code = ${REWARD_CODE_EARNING}::reward_code
-      WHERE p.using_company_id = ${companyId} AND p.music_id = ${musicId}
-      ORDER BY p.created_at DESC, p.id DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `);
-  
-    const rows: Array<{
-      play_id: number; played_at: string; is_valid: boolean; meta: any;
-      reward_id: number | null; reward_code: '0'|'1'|'2'|'3' | null;
-      amount: string | null; status: 'pending'|'successed' | null;
-    }> = (listRes as any).rows ?? [];
-  
+    SELECT
+      p.id AS play_id,
+      to_char(timezone(${TZ}::text, p.created_at), 'YYYY-MM-DD HH24:MI') AS played_at,
+      p.is_valid_play AS is_valid,          -- ✅ 플레이 자체 플래그만 사용
+      NULL::jsonb AS meta,                  -- 의도대로 meta는 항상 null(jsonb)
+      r.id   AS reward_id,                  -- 리워드는 참고용으로만
+      r.reward_code,
+      r.amount::text AS amount,
+      r.status
+    FROM ${music_plays} p
+    LEFT JOIN ${rewards} r
+      ON r.play_id = p.id                   -- ✅ 코드 필터 제거: 매칭되면 붙고, 없으면 NULL
+    WHERE p.using_company_id = ${companyId}
+      AND p.music_id = ${musicId}
+    ORDER BY p.created_at DESC, p.id DESC
+    LIMIT ${limit} OFFSET ${offset}
+  `);
+
+    const rows = (listRes as any).rows ?? [];
+
     return {
       page, limit, total,
       items: rows.map((r) => ({
@@ -607,33 +599,29 @@ export class MeService {
     };
   }
   async removeUsing(companyIdNum: number, musicIdNum: number) {
-    const companyId = companyIdNum; // company_musics.company_id 가 number 타입이라면 그대로 사용
+    const companyId = companyIdNum;
     const musicId = musicIdNum;
-  
-    return await this.db.transaction(async (tx: any) => {
-      // 존재 확인 (없어도 idempotent 하게 처리하려면 선택)
+
+    const changed = await this.db.transaction(async (tx: any) => {
       const chk = await tx.execute(sql`
         SELECT 1
         FROM ${company_musics}
         WHERE company_id = ${companyId} AND music_id = ${musicId}
         LIMIT 1
       `);
-  
+
       if (!chk?.rows?.length) {
-        // 이미 제거됐거나 없으면 현재 me 상태만 반환(아이덤포턴트)
-        return this.getMe(companyId);
-        // 또는 에러 원하면:
-        // throw new BadRequestException('이미 삭제되었거나 사용 중이 아닙니다.');
+        return false;
       }
-  
-      // 연결만 제거 (이력/리워드는 그대로 보존)
+
       await tx.execute(sql`
         DELETE FROM ${company_musics}
         WHERE company_id = ${companyId} AND music_id = ${musicId}
       `);
-  
-      // 최신 마이페이지 오버뷰 반환
-      return this.getMe(companyId);
+
+      return true; // 삭제됨
     });
+
+    return this.getMe(companyId);
   }
 }

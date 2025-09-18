@@ -7,7 +7,7 @@ export type TrendSegment = 'category' | 'all'
 const useCaseFilter = (type: TrendType) =>
   type === 'music' ? sql`mp.use_case IN ('0','1')` : sql`mp.use_case = '2'`
 
-// 일별 추세 그래프
+// 일별 추세 그래프 (유효재생 + 리워드 지급액 합계)
 export function buildMusicTrendDailyQuery(params: {
   musicId: number
   year: number
@@ -29,27 +29,31 @@ series AS (
 ),
 -- current music daily
 current_music AS (
-  SELECT DATE(mp.created_at AT TIME ZONE 'Asia/Seoul') AS d, COUNT(*) AS cnt
-  FROM music_plays mp, month_range mr
-  WHERE mp.music_id = ${musicId}
-    AND mp.is_valid_play = true
+  SELECT s.d AS d,
+         COALESCE(SUM(CASE WHEN mp.is_valid_play = true AND mp.reward_code = '1' THEN mp.reward_amount::numeric ELSE 0 END), 0) AS cnt
+  FROM series s
+  LEFT JOIN music_plays mp ON mp.music_id = ${musicId}
     AND ${useCaseFilter(type)}
-    AND mp.created_at >= mr.month_start AND mp.created_at <= mr.month_end
-  GROUP BY 1
+    AND mp.created_at >= (SELECT month_start FROM month_range)
+    AND mp.created_at <= (SELECT month_end FROM month_range)
+    AND DATE(mp.created_at AT TIME ZONE 'Asia/Seoul') = s.d
+  GROUP BY s.d
 ),
 -- industry average by day
 base AS (
   SELECT m.category_id FROM musics m WHERE m.id = ${musicId} LIMIT 1
 ),
 plays_by_music AS (
-  SELECT mp.music_id, DATE(mp.created_at AT TIME ZONE 'Asia/Seoul') AS d, COUNT(*) AS cnt
-  FROM music_plays mp, month_range mr
-  ${segment === 'category' ? sql`JOIN musics m ON m.id = mp.music_id` : sql``}
-  WHERE mp.is_valid_play = true
-    AND ${useCaseFilter(type)}
-    AND mp.created_at >= mr.month_start AND mp.created_at <= mr.month_end
-    ${segment === 'category' ? sql`AND m.category_id = (SELECT category_id FROM base)` : sql``}
-  GROUP BY 1,2
+  SELECT s.d AS d, mp.music_id,
+         COALESCE(SUM(CASE WHEN mp.is_valid_play = true AND mp.reward_code = '1' THEN mp.reward_amount::numeric ELSE 0 END), 0) AS cnt
+  FROM series s
+  LEFT JOIN music_plays mp ON ${useCaseFilter(type)}
+    AND mp.created_at >= (SELECT month_start FROM month_range)
+    AND mp.created_at <= (SELECT month_end FROM month_range)
+    AND DATE(mp.created_at AT TIME ZONE 'Asia/Seoul') = s.d
+  ${segment === 'category' ? sql`LEFT JOIN musics m ON m.id = mp.music_id` : sql``}
+  ${segment === 'category' ? sql`WHERE (m.category_id = (SELECT category_id FROM base) OR mp.music_id IS NULL)` : sql``}
+  GROUP BY s.d, mp.music_id
 ),
 industry_avg AS (
   SELECT d, AVG(cnt)::numeric AS avg_cnt
@@ -67,7 +71,7 @@ ORDER BY s.d ASC
   `
 }
 
-// 월별 추세 그래프
+// 월별 추세 그래프 (유효재생 + 리워드 지급액 합계)
 export function buildMusicTrendMonthlyQuery(params: {
   musicId: number
   endYear: number
@@ -90,10 +94,10 @@ series_bounds AS (
   SELECT month_start, (month_start + interval '1 month' - interval '1 second') AS month_end FROM series
 ),
 current_music AS (
-  SELECT to_char(sb.month_start, 'YYYY-MM') AS ym, COUNT(mp.*) AS cnt
+  SELECT to_char(sb.month_start, 'YYYY-MM') AS ym,
+         COALESCE(SUM(CASE WHEN mp.is_valid_play = true AND mp.reward_code = '1' THEN mp.reward_amount::numeric ELSE 0 END), 0) AS cnt
   FROM series_bounds sb
   LEFT JOIN music_plays mp ON mp.music_id = ${musicId}
-    AND mp.is_valid_play = true
     AND ${useCaseFilter(type)}
     AND mp.created_at >= sb.month_start AND mp.created_at <= sb.month_end
   GROUP BY sb.month_start
@@ -102,10 +106,10 @@ base AS (
   SELECT m.category_id FROM musics m WHERE m.id = ${musicId} LIMIT 1
 ),
 plays_by_music AS (
-  SELECT to_char(sb.month_start, 'YYYY-MM') AS ym, mp.music_id, COUNT(mp.*) AS cnt
+  SELECT to_char(sb.month_start, 'YYYY-MM') AS ym, mp.music_id,
+         COALESCE(SUM(CASE WHEN mp.is_valid_play = true AND mp.reward_code = '1' THEN mp.reward_amount::numeric ELSE 0 END), 0) AS cnt
   FROM series_bounds sb
-  LEFT JOIN music_plays mp ON mp.is_valid_play = true
-    AND ${useCaseFilter(type)}
+  LEFT JOIN music_plays mp ON ${useCaseFilter(type)}
     AND mp.created_at >= sb.month_start AND mp.created_at <= sb.month_end
   ${segment === 'category' ? sql`LEFT JOIN musics m ON m.id = mp.music_id` : sql``}
   ${segment === 'category' ? sql`WHERE (m.category_id = (SELECT category_id FROM base) OR mp.music_id IS NULL)` : sql``}

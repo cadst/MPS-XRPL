@@ -1,26 +1,31 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Res, UseInterceptors, UploadedFiles, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Res, UseInterceptors, UploadedFiles, BadRequestException, ValidationPipe } from '@nestjs/common';
 import { MusicsService } from './musics.service';
-import { CreateMusicDto } from './dto/create-music.dto';
-import { UpdateMusicDto } from './dto/update-music.dto';
-import { FindMusicsDto } from './dto/find-musics.dto';
-import { DeleteMusicsDto } from './dto/delete-musics.dto';
 import type { Response } from 'express';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import * as fs from 'fs';
-import { UpdateRewardDto } from './dto/update-reward.dto';
-import { CreateCategoryDto } from './dto/create-category.dto';
-import { MusicRewardsSummaryQueryDto } from './dto/music-rewards-summary.dto';
-import { ValidationPipe } from '@nestjs/common';
-import { MusicRewardsTrendQueryDto } from './dto/music-rewards-trend.dto';
-import { MusicMonthlyRewardsQueryDto } from './dto/music-monthly-rewards.dto';
-import { MusicCompanyUsageQueryDto } from './dto/music-company-usage.dto';
-import { MusicTotalStatsQueryDto } from './dto/music-stats.dto';
-import { PlaysValidStatsQueryDto } from './dto/plays-valid-stats.dto';
-import { RevenueForecastQueryDto } from './dto/revenue-forecast.dto';
-import { RewardsFilledStatsQueryDto } from './dto/rewards-filled-stats.dto';
-import { CategoryTop5QueryDto } from './dto/category-top5.dto';
-import { RealtimeApiStatusQueryDto, RealtimeTopTracksQueryDto, RealtimeTransactionsQueryDto } from './dto/realtime.dto';
+
+// DTOs
+import {
+  CreateMusicDto,
+  UpdateMusicDto,
+  FindMusicsDto,
+  DeleteMusicsDto,
+  UpdateRewardDto,
+  CreateCategoryDto,
+  MusicRewardsSummaryQueryDto,
+  MusicRewardsTrendQueryDto,
+  MusicMonthlyRewardsQueryDto,
+  MusicCompanyUsageQueryDto,
+  MusicTotalStatsQueryDto,
+  PlaysValidStatsQueryDto,
+  RevenueForecastQueryDto,
+  RewardsFilledStatsQueryDto,
+  CategoryTop5QueryDto,
+  RealtimeApiStatusQueryDto,
+  RealtimeTopTracksQueryDto,
+  RealtimeTransactionsQueryDto
+} from './dto';
 
 @Controller('/admin/musics')
 export class MusicsController {
@@ -86,10 +91,6 @@ export class MusicsController {
     return this.musicsService.getRewardsFilledStats(query);
   }
 
-  @Get('stats/category-top5')
-  async getCategoryTop5(@Query(new ValidationPipe({ transform: true })) query: CategoryTop5QueryDto) {
-    return this.musicsService.getCategoryTop5(query);
-  }
 
   @Get('realtime/api-status')
   async getRealtimeApiStatus(@Query(new ValidationPipe({ transform: true })) query: RealtimeApiStatusQueryDto) {
@@ -99,6 +100,11 @@ export class MusicsController {
   @Get('realtime/api-calls')
   async getRealtimeApiCalls(@Query(new ValidationPipe({ transform: true })) query: RealtimeApiStatusQueryDto) {
     return this.musicsService.getRealtimeApiCalls(query);
+  }
+
+  @Get('stats/category-top5')
+  async getCategoryTop5(@Query(new ValidationPipe({ transform: true })) query: CategoryTop5QueryDto) {
+    return this.musicsService.getCategoryTop5(query);
   }
 
   @Get('realtime/top-tracks')
@@ -137,7 +143,12 @@ export class MusicsController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.musicsService.findOne(+id);
+    // ID 유효성 검사
+    const musicId = +id;
+    if (isNaN(musicId) || musicId <= 0) {
+      throw new BadRequestException('유효하지 않은 음원 ID입니다.');
+    }
+    return this.musicsService.findOne(musicId);
   }
 
   @Patch(':id/rewards')
@@ -147,15 +158,20 @@ export class MusicsController {
 
   @Get(':id/cover')
   async getCover(@Param('id') id: string, @Res() res: Response) {
-    const file = await this.musicsService.getCoverFile(+id);
-    if (file.isUrl && file.url) {
-      return res.redirect(file.url);
+    try {
+      const file = await this.musicsService.getCoverFile(+id);
+      if (file.isUrl && file.url) {
+        return res.redirect(file.url);
+      }
+      if (file.absPath && file.contentType) {
+        res.setHeader('Content-Type', file.contentType);
+        return fs.createReadStream(file.absPath).pipe(res);
+      }
+      return res.status(404).send('커버 이미지가 없습니다.');
+    } catch (error) {
+      console.error('커버 이미지 로드 실패:', error.message);
+      return res.status(404).send('커버 이미지를 찾을 수 없습니다.');
     }
-    if (file.absPath && file.contentType) {
-      res.setHeader('Content-Type', file.contentType);
-      return fs.createReadStream(file.absPath).pipe(res);
-    }
-    return res.status(404).send('커버 이미지가 없습니다.');
   }
 
   @Get(':id/lyrics')
@@ -164,25 +180,30 @@ export class MusicsController {
     @Query('mode') mode: 'inline' | 'download' = 'inline',
     @Res() res: Response
   ) {
-    const info = await this.musicsService.getLyricsFileInfo(+id);
+    try {
+      const info = await this.musicsService.getLyricsFileInfo(+id);
 
-    if (info.hasText && info.text) {
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      if (mode === 'download') {
-        res.setHeader('Content-Disposition', `attachment; filename="lyrics.txt"`);
+      if (info.hasText && info.text) {
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        if (mode === 'download') {
+          res.setHeader('Content-Disposition', `attachment; filename="lyrics.txt"`);
+        }
+        return res.send(info.text);
       }
-      return res.send(info.text);
-    }
 
-    if (info.hasFile && info.absPath && info.filename) {
-      res.setHeader('Content-Type', 'text/plain');
-      if (mode === 'download') {
-        res.setHeader('Content-Disposition', `attachment; filename="${info.filename}"`);
+      if (info.hasFile && info.absPath && info.filename) {
+        res.setHeader('Content-Type', 'text/plain');
+        if (mode === 'download') {
+          res.setHeader('Content-Disposition', `attachment; filename="${info.filename}"`);
+        }
+        return fs.createReadStream(info.absPath).pipe(res);
       }
-      return fs.createReadStream(info.absPath).pipe(res);
-    }
 
-    return res.status(404).send('가사 파일을 찾을 수 없습니다.');
+      return res.status(404).send('가사 파일을 찾을 수 없습니다.');
+    } catch (error) {
+      console.error('가사 파일 로드 실패:', error.message);
+      return res.status(404).send('가사 파일을 찾을 수 없습니다.');
+    }
   }
 
   @Patch(':id')

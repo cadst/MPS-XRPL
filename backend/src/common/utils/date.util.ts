@@ -4,9 +4,10 @@ export const isValidYearMonth = (s?: string) => !!s && /^\d{4}-(0[1-9]|1[0-2])$/
 
 export const getDefaultYearMonthKST = () => {
   const now = new Date()
-  const kst = new Date(now.getTime() + 9 * 3600 * 1000)
-  const y = kst.getUTCFullYear()
-  const m = String(kst.getUTCMonth() + 1).padStart(2, '0')
+  // KST 시간대로 올바르게 변환
+  const kst = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Seoul"}))
+  const y = kst.getFullYear()
+  const m = String(kst.getMonth() + 1).padStart(2, '0')
   return `${y}-${m}`
 }
 
@@ -16,9 +17,9 @@ export const resolveYearMonthKST = (ym?: string) =>
 export const getPrevYearMonthKST = (ym?: string) => {
   const base = resolveYearMonthKST(ym)
   const [y, m] = base.split('-').map(Number)
-  const prev = new Date(Date.UTC(y, m - 2, 1))
-  const py = prev.getUTCFullYear()
-  const pm = String(prev.getUTCMonth() + 1).padStart(2, '0')
+  const prev = new Date(y, m - 2, 1)  // 로컬 시간 사용
+  const py = prev.getFullYear()
+  const pm = String(prev.getMonth() + 1).padStart(2, '0')
   return `${py}-${pm}`
 }
 
@@ -30,9 +31,10 @@ export const resolveYMToYearMonth = (ym?: string) => {
 
 export const isCurrentYM = (ym: string) => {
   const now = new Date()
-  const kst = new Date(now.getTime() + 9 * 3600 * 1000)
-  const y = kst.getUTCFullYear()
-  const m = kst.getUTCMonth() + 1
+  // KST 시간대로 올바르게 변환
+  const kst = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Seoul"}))
+  const y = kst.getFullYear()
+  const m = kst.getMonth() + 1
   const [yy, mm] = ym.split('-').map(Number)
   return y === yy && m === mm
 }

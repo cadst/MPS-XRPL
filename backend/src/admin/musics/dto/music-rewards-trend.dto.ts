@@ -17,7 +17,7 @@ export class MusicRewardsTrendQueryDto {
   yearMonth?: string
 
   @IsOptional()
-  @Transform(({ value }) => Number(value))
+  @Transform(({ value }) => value === undefined || value === null ? undefined : Number(value))
   @IsInt()
   @Min(1)
   @Max(24)

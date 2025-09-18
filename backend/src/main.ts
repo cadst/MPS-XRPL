@@ -2,7 +2,6 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
-
 import express from 'express';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
@@ -20,10 +19,15 @@ async function bootstrap() {
     origin: [
       'https://client.klk1.store',
       'https://admin.klk1.store',
+      'https://test.klk1.store',
+      'http://localhost:3000',
+      'http://localhost:4001',
+      'http://localhost:3001',
+      'http://127.0.0.1:5500',
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'x-api-key', 'User-Agent'],
   });
 
   app.use((req: any, _res, next) => {

@@ -156,7 +156,7 @@ export const buildByMusicQuery = (companyId: number, ymYear: number, ymMonth: nu
   WHERE mp.using_company_id = ${companyId}
     AND mp.created_at >= mr.month_start AND mp.created_at <= mr.month_end
   GROUP BY m.id, m.title, m.artist, mc.name
-  ORDER BY earned DESC, (music_calls + lyrics_calls) DESC
+  ORDER BY earned DESC, (COUNT(*) FILTER (WHERE mp.is_valid_play = true AND mp.reward_code = '1' AND mp.use_case IN ('0', '1')) + COUNT(*) FILTER (WHERE mp.is_valid_play = true AND mp.reward_code = '1' AND mp.use_case = '2')) DESC
   LIMIT 100;
 `
 

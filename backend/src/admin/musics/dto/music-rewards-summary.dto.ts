@@ -7,11 +7,11 @@ export class MusicRewardsSummaryQueryDto {
   yearMonth?: string
 
   @IsOptional()
-  @Transform(({ value }) => String(value).trim())
+  @Transform(({ value }) => value ? String(value).trim() : undefined)
   search?: string
 
   @IsOptional()
-  @Transform(({ value }) => (String(value) === 'all' ? undefined : Number(value)))
+  @Transform(({ value }) => (value && String(value) !== 'all' ? Number(value) : undefined))
   categoryId?: number
 
   @IsOptional()

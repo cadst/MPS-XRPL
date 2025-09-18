@@ -15,6 +15,8 @@ export class MusicMonthlyRewardsQueryDto {
 
 export class MusicMonthlyRewardsItemDto {
   label!: string 
+  musicCalls!: number
+  lyricsCalls!: number
   validPlays!: number
   companiesUsing!: number
   monthlyLimit!: number | null

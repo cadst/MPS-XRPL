@@ -1,23 +1,52 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { CreateCompanyDto } from './dto/create-company.dto';
-import { UpdateCompanyDto } from './dto/update-company.dto';
-import type { DB } from '../../db/client';
-import { sql } from 'drizzle-orm';
-import type { RewardsSummaryQueryDto } from './dto/rewards-summary.query.dto';
-import { getDefaultYearMonthKST, isValidYearMonth, resolveYearMonthKST } from '../../common/utils/date.util';
-import { normalizePagination } from '../../common/utils/pagination.util';
-import { normalizeSort } from '../../common/utils/sort.util';
-import { buildSummaryQuery, buildDailyQuery, buildByMusicQuery, buildSummaryListBaseQuery, buildDailyIndustryAvgQuery, buildMonthlyCompanyQuery, buildMonthlyIndustryAvgQuery } from './queries/rewards.queries';
-import { buildRenewalStatsQuery, buildHourlyValidPlaysQuery, buildTierDistributionQuery, buildRevenueCalendarQuery, buildRevenueTrendsQuery, buildRevenueCompaniesQuery, buildRevenueCompaniesCumulativeQuery } from './queries/stats.queries';
-import { RevenueCalendarQueryDto, RevenueCalendarResponseDto, RevenueCalendarDayDto } from './dto/revenue-calendar.dto';
-import { RevenueTrendsQueryDto, RevenueTrendsResponseDto, RevenueTrendsItemDto } from './dto/revenue-trends.dto';
-import { RevenueCompaniesQueryDto, RevenueCompaniesResponseDto, RevenueCompaniesItemDto } from './dto/revenue-companies.dto';
-import { CompanyTotalStatsQueryDto, CompanyTotalStatsResponseDto } from './dto/company-stats.dto';
-import { APP_CONFIG } from '../../config/app.config';
-import { RenewalStatsQueryDto, RenewalStatsResponseDto } from './dto/renewal-stats.dto';
-import { HourlyPlaysQueryDto, HourlyPlaysResponseDto } from './dto/hourly-plays.dto';
-import { TierDistributionQueryDto, TierDistributionResponseDto } from './dto/tier-distribution.dto';
-import { buildDayRangeCTE } from '../../common/utils/date.util';
+import { Injectable, Inject } from '@nestjs/common'
+import type { DB } from '../../db/client'
+import { sql } from 'drizzle-orm'
+import { APP_CONFIG } from '../../config/app.config'
+import { getDefaultYearMonthKST, isValidYearMonth, resolveYearMonthKST, buildDayRangeCTE } from '../../common/utils/date.util'
+import { normalizePagination } from '../../common/utils/pagination.util'
+import { normalizeSort } from '../../common/utils/sort.util'
+
+// DTOs
+import {
+  CreateCompanyDto,
+  UpdateCompanyDto,
+  RewardsSummaryQueryDto,
+  RevenueCalendarQueryDto,
+  RevenueCalendarResponseDto,
+  RevenueCalendarDayDto,
+  RevenueTrendsQueryDto,
+  RevenueTrendsResponseDto,
+  RevenueTrendsItemDto,
+  RevenueCompaniesQueryDto,
+  RevenueCompaniesResponseDto,
+  RevenueCompaniesItemDto,
+  CompanyTotalStatsQueryDto,
+  CompanyTotalStatsResponseDto,
+  RenewalStatsQueryDto,
+  RenewalStatsResponseDto,
+  HourlyPlaysQueryDto,
+  HourlyPlaysResponseDto,
+  TierDistributionQueryDto,
+  TierDistributionResponseDto
+} from './dto'
+
+// Queries
+import {
+  buildSummaryQuery,
+  buildDailyQuery,
+  buildByMusicQuery,
+  buildSummaryListBaseQuery,
+  buildDailyIndustryAvgQuery,
+  buildMonthlyCompanyQuery,
+  buildMonthlyIndustryAvgQuery,
+  buildRenewalStatsQuery,
+  buildHourlyValidPlaysQuery,
+  buildTierDistributionQuery,
+  buildRevenueCalendarQuery,
+  buildRevenueTrendsQuery,
+  buildRevenueCompaniesQuery,
+  buildRevenueCompaniesCumulativeQuery
+} from './queries'
 
 @Injectable()
 export class CompanyService {
@@ -231,7 +260,9 @@ export class CompanyService {
   }
 
   async getRevenueCalendar(query: RevenueCalendarQueryDto): Promise<RevenueCalendarResponseDto> {
+    console.log('🔍 [RevenueCalendar] query.yearMonth:', query.yearMonth)
     const ym = resolveYearMonthKST(query.yearMonth)
+    console.log('🔍 [RevenueCalendar] resolved ym:', ym)
     const [y, m] = ym.split('-').map(Number)
     const tz = 'Asia/Seoul'
 
@@ -299,8 +330,22 @@ export class CompanyService {
     const grade = query.grade || 'standard'
     const limit = Math.min(Math.max(query.limit ?? 5, 1), 20)
 
-    // 누적 구독료만으로 랭킹
-    const q = buildRevenueCompaniesCumulativeQuery(grade, limit)
+    // yearMonth 파싱 (기본: 현재 KST 기준 월)
+    const tz = '+09' // KST 고정
+    let y: number
+    let m: number
+    if (query.yearMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(query.yearMonth)) {
+      const [yy, mm] = query.yearMonth.split('-')
+      y = Number(yy)
+      m = Number(mm)
+    } else {
+      const now = new Date()
+      y = now.getFullYear()
+      m = now.getMonth() + 1
+    }
+
+    // 월 기준 구독+사용 매출 합계 랭킹
+    const q = buildRevenueCompaniesQuery(y, m, tz, grade, limit)
     const res = await this.db.execute(q)
     const rows = (res.rows || []) as any[]
     
@@ -316,9 +361,7 @@ export class CompanyService {
       growth: '+0.0%', // TODO: 전월 대비 계산
     }))
 
-    // 누적 랭킹이므로 yearMonth는 생략 가능하지만, 프론트 호환을 위해 현재 월을 반환
-    const now = new Date()
-    const ymStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
+    const ymStr = `${y}-${String(m).padStart(2,'0')}`
     return { yearMonth: ymStr, grade, items }
   }
 }
