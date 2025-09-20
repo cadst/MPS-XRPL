@@ -30,6 +30,7 @@ export type MeOverview = {
     grade: "free" | "standard" | "business";
     profileImageUrl: string | null;
     smartAccountAddress: string | null;
+    xrplAddress?: string | null;
     totalRewardsEarned: number;
     totalRewardsUsed: number;
     rewardBalance: number;
@@ -51,8 +52,8 @@ export type MeRewardsItem = {
   musicId: number;
   title: string | null;
   coverImageUrl: string | null;
-  playEndpoint: string;    // 예: /music/{id}/play
-  lyricsEndpoint: string;  // 예: /lyric/{id}/download
+  playEndpoint: string; // 예: /music/{id}/play
+  lyricsEndpoint: string; // 예: /lyric/{id}/download
   startDate: string | null; // ISO string
   rewardPerPlay: number | null;
   monthBudget: number;
@@ -83,9 +84,9 @@ export type MePlaysItem = {
   isValid: boolean;
   meta: any | null;
   rewardId: number | null;
-  rewardCode: '0' | '1' | '2' | '3' | null;
+  rewardCode: "0" | "1" | "2" | "3" | null;
   amount: number | null;
-  status: 'pending' | 'successed' | null;
+  status: "pending" | "successed" | null;
 };
 
 export type MePlaysResponse = {

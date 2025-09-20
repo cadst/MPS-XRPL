@@ -8,7 +8,7 @@ import {
   Query,
   UploadedFile,
   UseInterceptors,
-  Param, 
+  Param,
   ParseIntPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -34,6 +34,7 @@ export class CompaniesController {
    * - 파일이 오면 /uploads/profile/<랜덤명> 으로 저장하고, dto.profile_image_url 세팅
    * - 파일이 없으면 dto.profile_image_url(문자열) 그대로 사용
    * - skipNts=1|true 쿼리로 NTS 스킵 제어 가능(개발/테스트용)
+   * - XRPL: 가입 시 지갑 자동 생성(주소 저장, seed는 응답에 1회 노출)
    */
   @Post('register')
   @UseInterceptors(
@@ -48,8 +49,13 @@ export class CompaniesController {
       limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
       fileFilter: (_req, file, cb) => {
         // 이미지 MIME만 허용
-        if (/^image\/(png|jpe?g|gif|webp|avif)$/.test(file.mimetype)) cb(null, true);
-        else cb(new BadRequestException('이미지 파일만 업로드 가능합니다.') as any, false);
+        if (/^image\/(png|jpe?g|gif|webp|avif)$/.test(file.mimetype))
+          cb(null, true);
+        else
+          cb(
+            new BadRequestException('이미지 파일만 업로드 가능합니다.') as any,
+            false,
+          );
       },
     }),
   )
@@ -83,7 +89,7 @@ export class CompaniesController {
   @Post(':id/regenerate-api-key')
   async rotateById(@Param('id', ParseIntPipe) id: number) {
     // 응답: { api_key: string, last4: string }
-    console.log("들어온다")
+    console.log('들어온다');
     return this.companiesService.regenerateApiKey(id);
   }
 

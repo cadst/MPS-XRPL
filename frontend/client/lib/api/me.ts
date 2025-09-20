@@ -1,7 +1,7 @@
 // lib/api/me.ts
 import { MeOverview, MeRewardsResponse, MePlaysResponse } from "@/lib/types/me";
 import { getAccessToken } from "@/lib/api/auth/token";
-import { HistoryResponse } from '@/lib/types/history';
+import { HistoryResponse } from "@/lib/types/history";
 import { apiOrNull } from "@/lib/api/core/http";
 /* ---------------- helpers ---------------- */
 function normalizeToken(t: unknown): string | null {
@@ -34,51 +34,84 @@ const DEFAULT_BASE = "http://localhost:4000";
 
 /** 서버 JSON을 프론트 ViewModel(MeOverview)로 적응 */
 function adaptMe(json: any, base: string): MeOverview {
-  const rawCompany = (json && typeof json.company === "object") ? json.company : {};
+  const rawCompany =
+    json && typeof json.company === "object" ? json.company : {};
   const top = json ?? {};
-  const pick = <T>(...cands: T[]) => cands.find(v => v !== undefined && v !== null);
+  const pick = <T>(...cands: T[]) =>
+    cands.find((v) => v !== undefined && v !== null);
 
   // ---- grade (유니온 안전)
   const gradeRaw = pick(rawCompany.grade, top.grade, "free");
   const validGrades = ["free", "standard", "business"] as const;
-  const grade: typeof validGrades[number] =
-    validGrades.includes(gradeRaw as any) ? (gradeRaw as any) : "free";
+  const grade: (typeof validGrades)[number] = validGrades.includes(
+    gradeRaw as any
+  )
+    ? (gradeRaw as any)
+    : "free";
 
   const profileImageRaw = pick(
-    rawCompany.profile_image_url, rawCompany.profileImageUrl,
-    top.profile_image_url, top.profileImageUrl
+    rawCompany.profile_image_url,
+    rawCompany.profileImageUrl,
+    top.profile_image_url,
+    top.profileImageUrl
   );
-  const ceoNameRaw = pick(rawCompany.ceo_name, rawCompany.ceoName, top.ceo_name, top.ceoName);
+  const ceoNameRaw = pick(
+    rawCompany.ceo_name,
+    rawCompany.ceoName,
+    top.ceo_name,
+    top.ceoName
+  );
   const phoneRaw = pick(rawCompany.phone, top.phone);
   const homepageUrlRaw = pick(
-    rawCompany.homepage_url, rawCompany.homepageUrl,
-    top.homepage_url, top.homepageUrl
+    rawCompany.homepage_url,
+    rawCompany.homepageUrl,
+    top.homepage_url,
+    top.homepageUrl
   );
   const smartAddrRaw = pick(
-    rawCompany.smart_account_address, rawCompany.smartAccountAddress,
-    top.smart_account_address, top.smartAccountAddress
+    rawCompany.smart_account_address,
+    rawCompany.smartAccountAddress,
+    top.smart_account_address,
+    top.smartAccountAddress
+  );
+  const xrplAddrRaw = pick(
+    (rawCompany as any).xrpl_address,
+    (rawCompany as any).xrplAddress,
+    (top as any).xrpl_address,
+    (top as any).xrplAddress
   );
   const totalEarnedRaw = pick(
-    rawCompany.total_rewards_earned, rawCompany.totalRewardsEarned,
-    top.total_rewards_earned, top.totalRewardsEarned, 0
+    rawCompany.total_rewards_earned,
+    rawCompany.totalRewardsEarned,
+    top.total_rewards_earned,
+    top.totalRewardsEarned,
+    0
   );
   const totalUsedRaw = pick(
-    rawCompany.total_rewards_used, rawCompany.totalRewardsUsed,
-    top.total_rewards_used, top.totalRewardsUsed, 0
+    rawCompany.total_rewards_used,
+    rawCompany.totalRewardsUsed,
+    top.total_rewards_used,
+    top.totalRewardsUsed,
+    0
   );
   const rewardBalanceRaw = pick(
-    rawCompany.reward_balance, rawCompany.rewardBalance,
-    top.reward_balance, top.rewardBalance,
+    rawCompany.reward_balance,
+    rawCompany.rewardBalance,
+    top.reward_balance,
+    top.rewardBalance,
     (Number(totalEarnedRaw) || 0) - (Number(totalUsedRaw) || 0)
   );
 
-  const subs = (json && typeof json.subscription === "object") ? json.subscription : {};
+  const subs =
+    json && typeof json.subscription === "object" ? json.subscription : {};
   const apiKeyRaw = json?.api_key ?? json?.apiKey ?? { last4: null };
   const summaryRaw = json?.using_summary ?? json?.usingSummary ?? {};
 
   const usingList = Array.isArray(json?.using_list)
     ? json.using_list
-    : (Array.isArray(json?.usingList) ? json.usingList : []);
+    : Array.isArray(json?.usingList)
+    ? json.usingList
+    : [];
 
   return {
     company: {
@@ -87,6 +120,7 @@ function adaptMe(json: any, base: string): MeOverview {
       grade,
       profileImageUrl: toAbsolute(base, String(profileImageRaw ?? "")) ?? null,
       smartAccountAddress: smartAddrRaw ?? null,
+      xrplAddress: xrplAddrRaw ?? null,
       totalRewardsEarned: Number(totalEarnedRaw ?? 0),
       totalRewardsUsed: Number(totalUsedRaw ?? 0),
       rewardBalance: Number(rewardBalanceRaw ?? 0),
@@ -95,12 +129,18 @@ function adaptMe(json: any, base: string): MeOverview {
       homepageUrl: homepageUrlRaw ?? null,
     },
     subscription: {
-      plan: subs.plan ?? (json?.subscriptionStatus ?? json?.subscription_status ?? grade),
+      plan:
+        subs.plan ??
+        json?.subscriptionStatus ??
+        json?.subscription_status ??
+        grade,
       status: subs.status ?? "none",
       remainingDays: Number(subs.remaining_days ?? subs.remainingDays ?? 0),
     },
     apiKey: { last4: apiKeyRaw?.last4 ?? null },
-    usingSummary: { usingCount: Number(summaryRaw.using_count ?? summaryRaw.usingCount ?? 0) },
+    usingSummary: {
+      usingCount: Number(summaryRaw.using_count ?? summaryRaw.usingCount ?? 0),
+    },
     usingList,
   };
 }
@@ -111,52 +151,17 @@ export async function fetchMeOverview(opts?: {
   token?: string | null;
   signal?: AbortSignal;
   timeoutMs?: number;
-}): Promise<MeOverview | null> {   // 반환 타입을 MeOverview | null 로 변경
-  const baseRaw = (opts?.base ?? process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_BASE).replace(/\/+$/, "");
-    const json = await apiOrNull<any>("/me/overview");
-    if (!json) return null;
-    return adaptMe(json, baseRaw);
-  // const url = `${baseRaw}/me/overview`;
-
-  // const raw = opts?.token ?? (typeof getAccessToken === "function" ? await getAccessToken() : null);
-  // const token = normalizeToken(raw);
-  // const useCookie = !token;
-
-  // const internal = new AbortController();
-  // const signal = mergeSignals(opts?.signal, internal.signal);
-  // const timeoutMs = Math.max(1, opts?.timeoutMs ?? 15000);
-  // const timer = setTimeout(() => internal.abort("timeout"), timeoutMs);
-
-  // try {
-  //   const headers: Record<string, string> = { Accept: "application/json" };
-  //   if (token) headers.Authorization = `Bearer ${token}`;
-    
-  //   const res = await fetch(url, {
-  //     method: "GET",
-  //     mode: "cors",
-  //     cache: "no-store",
-  //     credentials: "include",         
-  //     headers,
-  //     signal,
-  //   });
-
-  //   if (res.status === 401) {
-  //     console.info("[fetchMeOverview] unauthorized → return null");
-  //     return null;  
-  //   }
-
-  //   if (!res.ok) {
-  //     const text = await res.text().catch(() => "");
-  //     throw new Error(`GET ${url} failed: ${res.status} ${res.statusText}${text ? ` :: ${text}` : ""}`);
-  //   }
-
-  //   const json = await res.json();
-  //   return adaptMe(json, baseRaw);
-  // } finally {
-  //   clearTimeout(timer);
-  // }
+}): Promise<MeOverview | null> {
+  // 반환 타입을 MeOverview | null 로 변경
+  const baseRaw = (
+    opts?.base ??
+    process.env.NEXT_PUBLIC_API_BASE ??
+    DEFAULT_BASE
+  ).replace(/\/+$/, "");
+  const json = await apiOrNull<any>("/me/overview");
+  if (!json) return null;
+  return adaptMe(json, baseRaw);
 }
-
 
 /** AbortError는 조용히 무시하고 null 반환 */
 export async function tryFetchMeOverview(
@@ -172,10 +177,17 @@ export async function tryFetchMeOverview(
 
 /* ---------------- API: PATCH (JSON) ---------------- */
 export async function updateMeProfile(payload: {
-  ceo_name?: string; phone?: string; homepage_url?: string; profile_image_url?: string;
+  ceo_name?: string;
+  phone?: string;
+  homepage_url?: string;
+  profile_image_url?: string;
 }): Promise<MeOverview> {
-  const base = (process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_BASE).replace(/\/+$/, "");
-  const raw = typeof getAccessToken === "function" ? await getAccessToken() : null;
+  const base = (process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_BASE).replace(
+    /\/+$/,
+    ""
+  );
+  const raw =
+    typeof getAccessToken === "function" ? await getAccessToken() : null;
   const token = normalizeToken(raw);
 
   const res = await fetch(`${base}/me/profile`, {
@@ -207,15 +219,20 @@ export async function updateMeProfileFormData(
 ): Promise<MeOverview> {
   if (!file) return updateMeProfile(fields);
 
-  const base = (process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_BASE).replace(/\/+$/, "");
-  const raw = typeof getAccessToken === "function" ? await getAccessToken() : null;
+  const base = (process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_BASE).replace(
+    /\/+$/,
+    ""
+  );
+  const raw =
+    typeof getAccessToken === "function" ? await getAccessToken() : null;
   const token = normalizeToken(raw);
 
   const fd = new FormData();
   if (fields.ceo_name) fd.append("ceo_name", fields.ceo_name);
   if (fields.phone) fd.append("phone", fields.phone);
   if (fields.homepage_url) fd.append("homepage_url", fields.homepage_url);
-  if (fields.profile_image_url) fd.append("profile_image_url", fields.profile_image_url);
+  if (fields.profile_image_url)
+    fd.append("profile_image_url", fields.profile_image_url);
   fd.append("profile_image", file);
 
   const res = await fetch(`${base}/me/profile`, {
@@ -237,15 +254,18 @@ export async function updateMeProfileFormData(
 
 /* ---------------- API: POST (구독 결제) ---------------- */
 export async function subscribeMe(opts: {
-  tier: 'standard' | 'business';
-  use_rewards: number;           // 사용할 리워드 (원화가 아님)
+  tier: "standard" | "business";
+  use_rewards: number; // 사용할 리워드 (원화가 아님)
 }) {
-  const base = (process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_BASE).replace(/\/+$/, '');
+  const base = (process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_BASE).replace(
+    /\/+$/,
+    ""
+  );
 
   const res = await fetch(`${base}/me/subscribe`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    credentials: 'include', // 쿠키 인증
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "include", // 쿠키 인증
     body: JSON.stringify(opts),
   });
 
@@ -259,9 +279,9 @@ export async function subscribeMe(opts: {
 /* ---------------- API: GET (구매/마일리지 이력) ---------------- */
 export async function fetchHistory(): Promise<HistoryResponse> {
   const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/me/history`, {
-    credentials: 'include',
+    credentials: "include",
   });
-  if (!res.ok) throw new Error('Failed to fetch history');
+  if (!res.ok) throw new Error("Failed to fetch history");
   return res.json();
 }
 
@@ -270,9 +290,16 @@ export async function fetchHistory(): Promise<HistoryResponse> {
  * ========================= */
 
 /** /me/rewards — 월 요약 + 아코디언 + 최근 N일 */
-export async function getMeRewards(params?: { days?: number; musicId?: number }) {
-  const base = (process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_BASE).replace(/\/+$/, "");
-  const raw = typeof getAccessToken === "function" ? await getAccessToken() : null;
+export async function getMeRewards(params?: {
+  days?: number;
+  musicId?: number;
+}) {
+  const base = (process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_BASE).replace(
+    /\/+$/,
+    ""
+  );
+  const raw =
+    typeof getAccessToken === "function" ? await getAccessToken() : null;
   const token = normalizeToken(raw);
 
   const qs = new URLSearchParams();
@@ -299,9 +326,17 @@ export async function getMeRewards(params?: { days?: number; musicId?: number })
 }
 
 /** /me/plays — 특정 음원의 재생 로그(유효/리워드 포함) */
-export async function getMePlays(params: { musicId: number; page?: number; limit?: number }) {
-  const base = (process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_BASE).replace(/\/+$/, "");
-  const raw = typeof getAccessToken === "function" ? await getAccessToken() : null;
+export async function getMePlays(params: {
+  musicId: number;
+  page?: number;
+  limit?: number;
+}) {
+  const base = (process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_BASE).replace(
+    /\/+$/,
+    ""
+  );
+  const raw =
+    typeof getAccessToken === "function" ? await getAccessToken() : null;
   const token = normalizeToken(raw);
 
   const qs = new URLSearchParams({ musicId: String(params.musicId) });
@@ -328,8 +363,12 @@ export async function getMePlays(params: { musicId: number; page?: number; limit
 }
 
 export async function removeUsingTrack(musicId: number) {
-  const base = (process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_BASE).replace(/\/+$/, "");
-  const raw = typeof getAccessToken === "function" ? await getAccessToken() : null;
+  const base = (process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_BASE).replace(
+    /\/+$/,
+    ""
+  );
+  const raw =
+    typeof getAccessToken === "function" ? await getAccessToken() : null;
   const token = normalizeToken(raw);
 
   const url = `${base}/me/using/${musicId}`;
@@ -349,5 +388,46 @@ export async function removeUsingTrack(musicId: number) {
   if (!txt || !txt.trim()) return null;
 
   const json = JSON.parse(txt);
-  return adaptMe(json, base); 
+  return adaptMe(json, base);
+}
+
+/* ---------------- XRPL ---------------- */
+export async function createXrplWallet() {
+  const base = (process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_BASE).replace(
+    /\/+$/,
+    ""
+  );
+  const res = await fetch(`${base}/xrpl/wallet`, {
+    method: "POST",
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json?.message || `HTTP ${res.status}`);
+  return json as { address: string; seed: string };
+}
+
+export async function convertRewards(params: {
+  amount: number;
+  destination?: string;
+}) {
+  const base = (process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_BASE).replace(
+    /\/+$/,
+    ""
+  );
+  const res = await fetch(`${base}/me/rewards/convert`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(params),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json?.message || `HTTP ${res.status}`);
+  return json as {
+    ok: boolean;
+    destination: string;
+    amount: number;
+    xrpAmount: string;
+    txHash: string;
+  };
 }

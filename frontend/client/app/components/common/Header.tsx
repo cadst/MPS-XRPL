@@ -14,14 +14,19 @@ function NavItem({
   href,
   label,
   active,
-}: { href: string; label: string; active: boolean }) {
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+}) {
   return (
     <Link
       href={href}
       className={`relative rounded-md px-3 py-2 text-sm font-medium transition-colors
-        ${active
-          ? "text-zinc-900 dark:text-white"
-          : "text-zinc-700 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white"
+        ${
+          active
+            ? "text-zinc-900 dark:text-white"
+            : "text-zinc-700 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white"
         }`}
     >
       {label}
@@ -85,7 +90,10 @@ export default function Header() {
     fetchMe();
     const refetch = () => alive && fetchMe();
     window.addEventListener("mps:auth:changed", refetch);
-    return () => { alive = false; window.removeEventListener("mps:auth:changed", refetch); };
+    return () => {
+      alive = false;
+      window.removeEventListener("mps:auth:changed", refetch);
+    };
   }, [fetchMe]);
 
   // 로그아웃
@@ -101,7 +109,10 @@ export default function Header() {
   const balance = useMemo(() => {
     const c = overview?.company;
     if (c) {
-      if (typeof c.rewardBalance === "number" && !Number.isNaN(c.rewardBalance)) {
+      if (
+        typeof c.rewardBalance === "number" &&
+        !Number.isNaN(c.rewardBalance)
+      ) {
         return Math.max(0, c.rewardBalance);
       }
       const earned = toNum(c.totalRewardsEarned);
@@ -118,15 +129,26 @@ export default function Header() {
 
   // 현재 플랜/상태
   const { currentPlan, isActiveSub } = useMemo(() => {
-    const plan = String(overview?.subscription?.plan ?? profile?.grade ?? "free").toLowerCase();
-    const status = String(overview?.subscription?.status ?? "none").toLowerCase();
+    const plan = String(
+      overview?.subscription?.plan ?? profile?.grade ?? "free"
+    ).toLowerCase();
+    const status = String(
+      overview?.subscription?.status ?? "none"
+    ).toLowerCase();
     const remainingDays = Number(overview?.subscription?.remainingDays ?? 0);
-  
-    const normalizedPlan: "free" | "standard" | "business" =
-      (["free", "standard", "business"] as const).includes(plan as any) ? (plan as any) : "free";
-  
-    const active = status === "active" || status === "trialing" || remainingDays > 0 || normalizedPlan !== "free";
-  
+
+    const normalizedPlan: "free" | "standard" | "business" = (
+      ["free", "standard", "business"] as const
+    ).includes(plan as any)
+      ? (plan as any)
+      : "free";
+
+    const active =
+      status === "active" ||
+      status === "trialing" ||
+      remainingDays > 0 ||
+      normalizedPlan !== "free";
+
     return { currentPlan: normalizedPlan, isActiveSub: active };
   }, [overview, profile]);
 
@@ -142,12 +164,22 @@ export default function Header() {
     if (currentPlan === "standard") {
       stdLabel = "구독 중";
       bizLabel = "업그레이드";
-      return { canBuyStandard: false, canBuyBusiness: true, stdLabel, bizLabel };
+      return {
+        canBuyStandard: false,
+        canBuyBusiness: true,
+        stdLabel,
+        bizLabel,
+      };
     }
     if (currentPlan === "business") {
       stdLabel = "구독 중";
       bizLabel = "구독 중";
-      return { canBuyStandard: false, canBuyBusiness: false, stdLabel, bizLabel };
+      return {
+        canBuyStandard: false,
+        canBuyBusiness: false,
+        stdLabel,
+        bizLabel,
+      };
     }
 
     return { canBuyStandard: true, canBuyBusiness: true, stdLabel, bizLabel };
@@ -170,17 +202,28 @@ export default function Header() {
   };
 
   // 결제(마일리지 확인) 계산
-  const { maxUsable, clampedUse, remainingAfterUse, remainingToPay } = useMemo(() => {
-    if (!pendingPlan) {
-      return { maxUsable: 0, clampedUse: 0, remainingAfterUse: balance, remainingToPay: 0 };
-    }
-    const policyCap = Math.floor(pendingPlan.price * 0.3); // 요금의 30%
-    const max = Math.min(policyCap, balance);
-    const use = Math.max(0, Math.min(useLeaders || 0, max));
-    const left = balance - use;
-    const toPay = Math.max(pendingPlan.price - use, 0);
-    return { maxUsable: max, clampedUse: use, remainingAfterUse: left, remainingToPay: toPay };
-  }, [pendingPlan, balance, useLeaders]);
+  const { maxUsable, clampedUse, remainingAfterUse, remainingToPay } =
+    useMemo(() => {
+      if (!pendingPlan) {
+        return {
+          maxUsable: 0,
+          clampedUse: 0,
+          remainingAfterUse: balance,
+          remainingToPay: 0,
+        };
+      }
+      const policyCap = Math.floor(pendingPlan.price * 0.3); // 요금의 30%
+      const max = Math.min(policyCap, balance);
+      const use = Math.max(0, Math.min(useLeaders || 0, max));
+      const left = balance - use;
+      const toPay = Math.max(pendingPlan.price - use, 0);
+      return {
+        maxUsable: max,
+        clampedUse: use,
+        remainingAfterUse: left,
+        remainingToPay: toPay,
+      };
+    }, [pendingPlan, balance, useLeaders]);
 
   return (
     <>
@@ -195,13 +238,26 @@ export default function Header() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:px-8">
           {/* 좌측: 로고 + 내비 */}
           <div className="flex items-center gap-10">
-            <Link href="/" className="text-xl font-bold tracking-widest text-zinc-900 dark:text-white">MPS</Link>
+            <Link
+              href="/"
+              className="text-xl font-bold tracking-widest text-zinc-900 dark:text-white"
+            >
+              MPS
+            </Link>
 
             {/* 데스크탑 내비게이션 */}
             <nav className="hidden md:flex items-center">
               <div className="flex items-center gap-1">
-                <NavItem href="/musicList" label="음악" active={pathname.startsWith("/musicList")} />
-                <NavItem href="/dosc" label="개발자 도구" active={pathname.startsWith("/dosc")} />
+                <NavItem
+                  href="/musicList"
+                  label="음악"
+                  active={pathname.startsWith("/musicList")}
+                />
+                <NavItem
+                  href="/dosc"
+                  label="개발자 도구"
+                  active={pathname.startsWith("/dosc")}
+                />
                 {/* <NavItem href="/mypage" label="마이페이지" active={pathname.startsWith("/mypage")} /> */}
               </div>
             </nav>
@@ -213,6 +269,31 @@ export default function Header() {
               <ThemeSwitch />
             </div>
 
+            <button
+              onClick={async () => {
+                try {
+                  const base = (process.env.NEXT_PUBLIC_API_BASE ?? "").replace(
+                    /\/+$/,
+                    ""
+                  );
+                  const res = await fetch(`${base}/auth/quick-register`, {
+                    method: "POST",
+                    credentials: "include",
+                  });
+                  const j = await res.json().catch(() => ({} as any));
+                  if (!res.ok)
+                    throw new Error(j?.message || `HTTP ${res.status}`);
+                  alert(
+                    `원클릭 가입/로그인 완료\n이메일: ${j.email}\n비밀번호: ${j.password}`
+                  );
+                } catch (e: any) {
+                  alert(e?.message || "빠른 가입에 실패했습니다.");
+                }
+              }}
+              className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-500"
+            >
+              원클릭 가입/로그인
+            </button>
             {/* “요금제 보기”는 항상 표시 */}
             <button
               onClick={() => setShowPricing(true)}
@@ -254,7 +335,10 @@ export default function Header() {
                   aria-haspopup="menu"
                   aria-expanded={profileOpen}
                 >
-                  <Avatar src={assetUrl(profile?.profile_image_url)} fallback={getInitial(companyLabel)} />
+                  <Avatar
+                    src={assetUrl(profile?.profile_image_url)}
+                    fallback={getInitial(companyLabel)}
+                  />
                   <span className="max-w-[180px] truncate">{companyLabel}</span>
                 </button>
 
@@ -266,11 +350,18 @@ export default function Header() {
                                dark:border-white/10 dark:bg-zinc-900"
                   >
                     <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-200/50 dark:border-white/10">
-                      <Avatar src={assetUrl(profile?.profile_image_url)} fallback={getInitial(companyLabel)} />
+                      <Avatar
+                        src={assetUrl(profile?.profile_image_url)}
+                        fallback={getInitial(companyLabel)}
+                      />
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-zinc-900 dark:text-white">{companyLabel}</div>
+                        <div className="truncate text-sm font-semibold text-zinc-900 dark:text-white">
+                          {companyLabel}
+                        </div>
                         {profile?.email && (
-                          <div className="truncate text-xs text-zinc-500 dark:text-zinc-400">{profile.email}</div>
+                          <div className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                            {profile.email}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -314,18 +405,27 @@ export default function Header() {
               {/* 로그인 시 상단 요약 */}
               {isLoggedIn && (
                 <div className="flex items-center gap-3 rounded-md px-3 py-2">
-                  <Avatar src={assetUrl(profile?.profile_image_url)} fallback={getInitial(companyLabel)} />
+                  <Avatar
+                    src={assetUrl(profile?.profile_image_url)}
+                    fallback={getInitial(companyLabel)}
+                  />
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-zinc-900 dark:text-white">{companyLabel}</div>
+                    <div className="truncate text-sm font-semibold text-zinc-900 dark:text-white">
+                      {companyLabel}
+                    </div>
                     {profile?.email && (
-                      <div className="truncate text-xs text-zinc-500 dark:text-zinc-400">{profile.email}</div>
+                      <div className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                        {profile.email}
+                      </div>
                     )}
                   </div>
                 </div>
               )}
 
               <div className="flex items-center justify-between rounded-md px-3 py-2">
-                <span className="text-sm text-zinc-700 dark:text-white/80">다크 모드</span>
+                <span className="text-sm text-zinc-700 dark:text-white/80">
+                  다크 모드
+                </span>
                 <ThemeSwitch />
               </div>
 
@@ -383,7 +483,10 @@ export default function Header() {
 
               {/* 요금제 보기 버튼 (항상 노출) */}
               <button
-                onClick={() => { setMenuOpen(false); setShowPricing(true); }}
+                onClick={() => {
+                  setMenuOpen(false);
+                  setShowPricing(true);
+                }}
                 className="text-left rounded-md px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-900/5 dark:text-gray-200 dark:hover:bg-white/10"
               >
                 요금제 보기
@@ -406,7 +509,9 @@ export default function Header() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-zinc-900 dark:text-white">요금제</h2>
+              <h2 className="text-xl font-bold text-zinc-900 dark:text-white">
+                요금제
+              </h2>
               <button
                 onClick={() => setShowPricing(false)}
                 className="rounded-md px-2 py-1 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-white/10"
@@ -422,8 +527,12 @@ export default function Header() {
               <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white p-5 transition-shadow hover:shadow-md dark:border-white/10 dark:bg-zinc-900">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="text-base font-semibold text-zinc-900 dark:text-white">Standard</h3>
-                    <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">기업 사용</p>
+                    <h3 className="text-base font-semibold text-zinc-900 dark:text-white">
+                      Standard
+                    </h3>
+                    <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                      기업 사용
+                    </p>
                   </div>
                   <span className="rounded-full border border-zinc-200 px-2 py-0.5 text-[10px] font-semibold text-zinc-700 dark:border-white/10 dark:text-zinc-300">
                     월
@@ -431,8 +540,12 @@ export default function Header() {
                 </div>
 
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-3xl font-bold text-zinc-900 dark:text-white">₩19,000</span>
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400">/월</span>
+                  <span className="text-3xl font-bold text-zinc-900 dark:text-white">
+                    ₩19,000
+                  </span>
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                    /월
+                  </span>
                 </div>
 
                 <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-zinc-600 dark:text-zinc-300">
@@ -442,22 +555,40 @@ export default function Header() {
 
                 {isLoggedIn ? (
                   <button
-                    onClick={() => openConfirm({ name: "Standard", price: 19000 })}
+                    onClick={() =>
+                      openConfirm({ name: "Standard", price: 19000 })
+                    }
                     disabled={!purchasingRules.canBuyStandard}
-                    title={!purchasingRules.canBuyStandard ? "이미 구독 중이거나 업그레이드만 가능합니다." : undefined}
+                    title={
+                      !purchasingRules.canBuyStandard
+                        ? "이미 구독 중이거나 업그레이드만 가능합니다."
+                        : undefined
+                    }
                     className={`mt-5 h-10 w-full rounded-lg border text-sm font-medium transition
-                               ${purchasingRules.canBuyStandard
-                                  ? "border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-white/10"
-                                  : "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400 dark:border-white/10 dark:bg-white/10 dark:text-zinc-500"
-                                }`}
+                               ${
+                                 purchasingRules.canBuyStandard
+                                   ? "border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-white/10"
+                                   : "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400 dark:border-white/10 dark:bg-white/10 dark:text-zinc-500"
+                               }`}
                   >
                     {purchasingRules.stdLabel}
                   </button>
                 ) : (
                   <div className="mt-5 rounded-lg border border-amber-300/50 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-300/20 dark:bg-amber-500/10 dark:text-amber-300">
                     로그인 후 구독할 수 있어요.{" "}
-                    <Link href="/login#top" className="underline underline-offset-2">로그인</Link> 또는{" "}
-                    <Link href="/register#top" className="underline underline-offset-2">회원가입</Link>
+                    <Link
+                      href="/login#top"
+                      className="underline underline-offset-2"
+                    >
+                      로그인
+                    </Link>{" "}
+                    또는{" "}
+                    <Link
+                      href="/register#top"
+                      className="underline underline-offset-2"
+                    >
+                      회원가입
+                    </Link>
                   </div>
                 )}
               </div>
@@ -466,8 +597,12 @@ export default function Header() {
               <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white p-5 transition-shadow hover:shadow-md dark:border-white/10 dark:bg-zinc-900">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="text-base font-semibold text-zinc-900 dark:text-white">Business</h3>
-                    <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">기업 전용</p>
+                    <h3 className="text-base font-semibold text-zinc-900 dark:text-white">
+                      Business
+                    </h3>
+                    <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                      기업 전용
+                    </p>
                   </div>
                   <span className="rounded-full border border-zinc-200 px-2 py-0.5 text:[10px] font-semibold text-zinc-700 dark:border-white/10 dark:text-zinc-300">
                     월
@@ -475,8 +610,12 @@ export default function Header() {
                 </div>
 
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-3xl font-bold text-zinc-900 dark:text-white">₩29,000</span>
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400">/월</span>
+                  <span className="text-3xl font-bold text-zinc-900 dark:text-white">
+                    ₩29,000
+                  </span>
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                    /월
+                  </span>
                 </div>
 
                 <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-zinc-600 dark:text-zinc-300">
@@ -486,22 +625,40 @@ export default function Header() {
 
                 {isLoggedIn ? (
                   <button
-                    onClick={() => openConfirm({ name: "Business", price: 29000 })}
+                    onClick={() =>
+                      openConfirm({ name: "Business", price: 29000 })
+                    }
                     disabled={!purchasingRules.canBuyBusiness}
-                    title={!purchasingRules.canBuyBusiness ? "이미 Business 구독 중입니다." : undefined}
+                    title={
+                      !purchasingRules.canBuyBusiness
+                        ? "이미 Business 구독 중입니다."
+                        : undefined
+                    }
                     className={`mt-5 h-10 w-full rounded-lg border text-sm font-medium transition
-                               ${purchasingRules.canBuyBusiness
-                                  ? "border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-white/10"
-                                  : "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400 dark:border-white/10 dark:bg-white/10 dark:text-zinc-500"
-                                }`}
+                               ${
+                                 purchasingRules.canBuyBusiness
+                                   ? "border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-white/10"
+                                   : "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400 dark:border-white/10 dark:bg-white/10 dark:text-zinc-500"
+                               }`}
                   >
                     {purchasingRules.bizLabel}
                   </button>
                 ) : (
                   <div className="mt-5 rounded-lg border border-amber-300/50 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-300/20 dark:bg-amber-500/10 dark:text-amber-300">
                     로그인 후 구독할 수 있어요.{" "}
-                    <Link href="/login#top" className="underline underline-offset-2">로그인</Link> 또는{" "}
-                    <Link href="/register#top" className="underline underline-offset-2">회원가입</Link>
+                    <Link
+                      href="/login#top"
+                      className="underline underline-offset-2"
+                    >
+                      로그인
+                    </Link>{" "}
+                    또는{" "}
+                    <Link
+                      href="/register#top"
+                      className="underline underline-offset-2"
+                    >
+                      회원가입
+                    </Link>
                   </div>
                 )}
               </div>
@@ -520,7 +677,11 @@ export default function Header() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <h4 className="text-base font-semibold text-zinc-900 dark:text-white">
-                    {pendingPlan.name} {currentPlan === "standard" && pendingPlan.name === "Business" ? "업그레이드" : "구독"}
+                    {pendingPlan.name}{" "}
+                    {currentPlan === "standard" &&
+                    pendingPlan.name === "Business"
+                      ? "업그레이드"
+                      : "구독"}
                   </h4>
 
                   <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
@@ -533,7 +694,9 @@ export default function Header() {
 
                   <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm dark:border-white/10 dark:bg-white/5">
                     <div className="flex items-center justify-between">
-                      <span className="text-zinc-700 dark:text-zinc-300">보유 리워드</span>
+                      <span className="text-zinc-700 dark:text-zinc-300">
+                        보유 리워드
+                      </span>
                       <span className="font-semibold text-zinc-900 dark:text-white">
                         {balance.toLocaleString()} 리워드
                       </span>
@@ -542,7 +705,8 @@ export default function Header() {
                     <div className="mt-2 flex items-end gap-2">
                       <div className="flex-1">
                         <label className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">
-                          사용할 리워드 (최대 {maxUsable.toLocaleString()} | 요금의 30%)
+                          사용할 리워드 (최대 {maxUsable.toLocaleString()} |
+                          요금의 30%)
                         </label>
                         <input
                           type="number"
@@ -553,11 +717,18 @@ export default function Header() {
                           onChange={(e) => {
                             const val = Number(e.target.value);
                             if (isNaN(val)) setUseLeaders(0);
-                            else setUseLeaders(Math.max(0, Math.min(val, maxUsable)));
+                            else
+                              setUseLeaders(
+                                Math.max(0, Math.min(val, maxUsable))
+                              );
                           }}
                           onBlur={(e) => {
                             const val = Number(e.target.value);
-                            setUseLeaders(isNaN(val) ? 0 : Math.max(0, Math.min(val, maxUsable)));
+                            setUseLeaders(
+                              isNaN(val)
+                                ? 0
+                                : Math.max(0, Math.min(val, maxUsable))
+                            );
                           }}
                           className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none
                                      focus:border-zinc-400 dark:border-white/10 dark:bg-zinc-900 dark:text-white"
@@ -569,7 +740,9 @@ export default function Header() {
                           min={0}
                           max={maxUsable}
                           value={clampedUse}
-                          onChange={(e) => setUseLeaders(Number(e.target.value))}
+                          onChange={(e) =>
+                            setUseLeaders(Number(e.target.value))
+                          }
                           className="mt-2 w-full"
                         />
                       </div>
@@ -585,19 +758,25 @@ export default function Header() {
 
                     <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
                       <div className="rounded-md bg-white p-2 text-center shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-white/10">
-                        <div className="text-zinc-500 dark:text-zinc-400">사용 예정</div>
+                        <div className="text-zinc-500 dark:text-zinc-400">
+                          사용 예정
+                        </div>
                         <div className="mt-0.5 font-semibold text-zinc-900 dark:text-white">
                           {clampedUse.toLocaleString()}
                         </div>
                       </div>
                       <div className="rounded-md bg-white p-2 text-center shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-white/10">
-                        <div className="text-zinc-500 dark:text-zinc-400">남은 리워드</div>
+                        <div className="text-zinc-500 dark:text-zinc-400">
+                          남은 리워드
+                        </div>
                         <div className="mt-0.5 font-semibold text-zinc-900 dark:text-white">
                           {remainingAfterUse.toLocaleString()}
                         </div>
                       </div>
                       <div className="rounded-md bg-white p-2 text-center shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-white/10">
-                        <div className="text-zinc-500 dark:text-zinc-400">남은 결제</div>
+                        <div className="text-zinc-500 dark:text-zinc-400">
+                          남은 결제
+                        </div>
                         <div className="mt-0.5 font-semibold text-zinc-900 dark:text-white">
                           ₩{remainingToPay.toLocaleString()}
                         </div>
@@ -617,27 +796,37 @@ export default function Header() {
                         if (!pendingPlan) return;
 
                         // 구매 제한 재확인
-                        if (pendingPlan.name === "Standard" && !purchasingRules.canBuyStandard) {
+                        if (
+                          pendingPlan.name === "Standard" &&
+                          !purchasingRules.canBuyStandard
+                        ) {
                           alert("이미 구독 중이거나 업그레이드만 가능합니다.");
                           return;
                         }
-                        if (pendingPlan.name === "Business" && !purchasingRules.canBuyBusiness) {
+                        if (
+                          pendingPlan.name === "Business" &&
+                          !purchasingRules.canBuyBusiness
+                        ) {
                           alert("이미 Business 구독 중입니다.");
                           return;
                         }
                         try {
                           setSubscribing(true);
-                          const tier = pendingPlan.name.toLowerCase() as "standard" | "business";
+                          const tier = pendingPlan.name.toLowerCase() as
+                            | "standard"
+                            | "business";
                           await subscribeMe({ tier, use_rewards: clampedUse });
-                        
+
                           // 등급 + 보유 리워드 동시 최신화
                           await Promise.all([fetchMe(), refreshOverview()]);
-                        
+
                           // 다른 페이지(MyPage 등)도 즉시 반영되도록 브로드캐스트
-                          window.dispatchEvent(new CustomEvent("mps:me:overview:changed"));
-                        
+                          window.dispatchEvent(
+                            new CustomEvent("mps:me:overview:changed")
+                          );
+
                           window.location.reload();
-                        
+
                           setConfirmOpen(false);
                           setShowPricing(false);
                         } catch (e: any) {
@@ -645,13 +834,17 @@ export default function Header() {
                         } finally {
                           setSubscribing(false);
                         }
-                        
                       }}
                       disabled={subscribing}
                       className="h-9 rounded-lg bg-zinc-900 px-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60
                                  dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100"
                     >
-                      {subscribing ? "처리 중…" : (currentPlan === "standard" && pendingPlan.name === "Business" ? "업그레이드 결제" : " 결제")}
+                      {subscribing
+                        ? "처리 중…"
+                        : currentPlan === "standard" &&
+                          pendingPlan.name === "Business"
+                        ? "업그레이드 결제"
+                        : " 결제"}
                     </button>
                   </div>
                 </div>

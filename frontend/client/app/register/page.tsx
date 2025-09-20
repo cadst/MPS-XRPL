@@ -9,7 +9,8 @@ import { verifyBizno, registerCompany } from "../../lib/api/companies";
 /* ---------- 유틸 ---------- */
 function copyToClipboard(text: string) {
   if (!text) return Promise.resolve();
-  if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text);
+  if (navigator.clipboard?.writeText)
+    return navigator.clipboard.writeText(text);
   const ta = document.createElement("textarea");
   ta.value = text;
   ta.style.position = "fixed";
@@ -25,9 +26,11 @@ function copyToClipboard(text: string) {
 function generateApiKey(len = 40) {
   const bytes = new Uint8Array(len);
   crypto.getRandomValues(bytes);
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  const alphabet =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
   let s = "sk_live_";
-  for (let i = 0; i < bytes.length; i++) s += alphabet[bytes[i] % alphabet.length];
+  for (let i = 0; i < bytes.length; i++)
+    s += alphabet[bytes[i] % alphabet.length];
   return s;
 }
 
@@ -42,7 +45,7 @@ function isBizNoChecksumOk(biz10: string) {
   let sum = 0;
   for (let i = 0; i < 9; i++) sum += d[i] * w[i];
   sum += Math.floor((d[8] * 5) / 10);
-  return ((10 - (sum % 10)) % 10) === d[9];
+  return (10 - (sum % 10)) % 10 === d[9];
 }
 
 /* ---------- 타입 ---------- */
@@ -57,7 +60,8 @@ type FormState = {
   homepage_url: string;
 };
 
-const REGISTER_SKIP_NTS = (process.env.NEXT_PUBLIC_REGISTER_SKIP_NTS ?? "") === "1";
+const REGISTER_SKIP_NTS =
+  (process.env.NEXT_PUBLIC_REGISTER_SKIP_NTS ?? "") === "1";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -103,17 +107,22 @@ export default function RegisterPage() {
   });
 
   const step1Valid = useMemo(
-    () => f.name.trim().length > 0 && isBizNoFormatted(f.business_number) && isEmail(f.email) && f.password.length >= 8,
-    [f],
+    () =>
+      f.name.trim().length > 0 &&
+      isBizNoFormatted(f.business_number) &&
+      isEmail(f.email) &&
+      f.password.length >= 8,
+    [f]
   );
 
   const step2Valid = useMemo(
     () =>
       f.phone.trim().length > 0 &&
       f.ceo_name.trim().length > 0 &&
-      (f.profile_image_url.trim() === "" || /^https?:\/\//.test(f.profile_image_url)) &&
+      (f.profile_image_url.trim() === "" ||
+        /^https?:\/\//.test(f.profile_image_url)) &&
       (f.homepage_url.trim() === "" || /^https?:\/\//.test(f.homepage_url)),
-    [f],
+    [f]
   );
 
   // 사업자번호 표시 포맷
@@ -129,8 +138,7 @@ export default function RegisterPage() {
   };
 
   const handleChange =
-    (key: keyof FormState) =>
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    (key: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) => {
       let v = e.target.value;
       if (key === "business_number") v = formatBizNo(v);
       setF((p) => ({ ...p, [key]: v }));
@@ -164,7 +172,10 @@ export default function RegisterPage() {
   /* ---------- 사업자번호 버튼 검증 ---------- */
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState<string | null>(null);
-  const biz10 = useMemo(() => normalizeBizNo(f.business_number), [f.business_number]);
+  const biz10 = useMemo(
+    () => normalizeBizNo(f.business_number),
+    [f.business_number]
+  );
   const checksumOk = useMemo(() => isBizNoChecksumOk(biz10), [biz10]);
 
   async function onVerifyBizno() {
@@ -173,17 +184,23 @@ export default function RegisterPage() {
       setVerifyMsg("형식 오류(숫자 10자리 아님)");
       return; // 10자리는 최소 보장
     }
-  
+
     // 체크섬은 "보조 메시지"로만 사용
     const localHint = checksumOk ? "로컬검증OK" : "체크섬NG";
-  
+
     setVerifyLoading(true);
     try {
-      const r = await verifyBizno(biz10);      // ← 항상 서버 호출
+      const r = await verifyBizno(biz10); // ← 항상 서버 호출
       if (r.ok) {
-        setVerifyMsg(`사용 가능 (${r.source === "LOCAL" ? "로컬" : "국세청"}${r.tax_type ? `·${r.tax_type}` : ""}) | ${localHint}`);
+        setVerifyMsg(
+          `사용 가능 (${r.source === "LOCAL" ? "로컬" : "국세청"}${
+            r.tax_type ? `·${r.tax_type}` : ""
+          }) | ${localHint}`
+        );
       } else {
-        setVerifyMsg(`사용 불가${r.reason ? `·${r.reason}` : ""} | ${localHint}`);
+        setVerifyMsg(
+          `사용 불가${r.reason ? `·${r.reason}` : ""} | ${localHint}`
+        );
       }
     } catch (e: any) {
       setVerifyMsg(`검증 실패: ${String(e?.message ?? e)} | ${localHint}`);
@@ -294,9 +311,11 @@ export default function RegisterPage() {
           <div
             className="rounded-2xl p-5 md:p-6"
             style={{
-              background: "linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.04))",
+              background:
+                "linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.04))",
               border: "1px solid rgba(255,255,255,.08)",
-              boxShadow: "0 1px 0 rgba(255,255,255,.06) inset, 0 12px 40px rgba(0,0,0,.45)",
+              boxShadow:
+                "0 1px 0 rgba(255,255,255,.06) inset, 0 12px 40px rgba(0,0,0,.45)",
               backdropFilter: "blur(10px)",
             }}
           >
@@ -307,9 +326,14 @@ export default function RegisterPage() {
                 <span>기업 정보</span>
               </div>
               <div className="mt-2 h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
-                <div className="h-full bg-white transition-all" style={{ width: step === 1 ? "50%" : "100%" }} />
+                <div
+                  className="h-full bg-white transition-all"
+                  style={{ width: step === 1 ? "50%" : "100%" }}
+                />
               </div>
-              <div className="mt-2 text-center text-xs text-white/60">{step}/2 단계</div>
+              <div className="mt-2 text-center text-xs text-white/60">
+                {step}/2 단계
+              </div>
             </div>
 
             {/* 폼 */}
@@ -409,20 +433,38 @@ export default function RegisterPage() {
 
                   {/* 업로드 */}
                   <Field label="프로필 이미지 (선택)">
-                    <input ref={fileRef} type="file" accept="image/*" onChange={handleProfilePick} className="hidden" />
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProfilePick}
+                      className="hidden"
+                    />
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
                         onClick={openFilePicker}
                         className="h-10 px-4 rounded-lg bg-white text-black text-sm font-semibold hover:bg-white/90 transition"
                       >
-                        {profileFile || f.profile_image_url ? "이미지 변경" : "이미지 선택"}
+                        {profileFile || f.profile_image_url
+                          ? "이미지 변경"
+                          : "이미지 선택"}
                       </button>
 
                       <div className="text-xs text-white/70 truncate">
-                        {f.profile_image_url && <span className="break-all">선택됨(URL): {f.profile_image_url}</span>}
-                        {!f.profile_image_url && profileFile && <span className="truncate">{profileFile.name}</span>}
-                        {!profileFile && !f.profile_image_url && <span className="text-white/40">이미지를 선택하세요</span>}
+                        {f.profile_image_url && (
+                          <span className="break-all">
+                            선택됨(URL): {f.profile_image_url}
+                          </span>
+                        )}
+                        {!f.profile_image_url && profileFile && (
+                          <span className="truncate">{profileFile.name}</span>
+                        )}
+                        {!profileFile && !f.profile_image_url && (
+                          <span className="text-white/40">
+                            이미지를 선택하세요
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -430,7 +472,11 @@ export default function RegisterPage() {
                       <div className="mt-3">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={profileFile ? URL.createObjectURL(profileFile) : f.profile_image_url}
+                          src={
+                            profileFile
+                              ? URL.createObjectURL(profileFile)
+                              : f.profile_image_url
+                          }
                           alt="프로필 미리보기"
                           className="h-24 w-24 rounded-lg object-cover border border-white/10"
                         />
@@ -487,7 +533,10 @@ export default function RegisterPage() {
               </div>
 
               <div className="pt-2 text-center">
-                <Link href="/login#top" className="text-xs text-white/60 hover:text-white/90 underline underline-offset-4">
+                <Link
+                  href="/login#top"
+                  className="text-xs text-white/60 hover:text-white/90 underline underline-offset-4"
+                >
                   이미 계정이 있으신가요? 로그인
                 </Link>
               </div>
@@ -507,14 +556,19 @@ export default function RegisterPage() {
           >
             <h2 className="text-lg font-semibold">회원가입이 완료되었습니다</h2>
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
-              아래 API 키는 보안상 <b>지금 한 번만</b> 표시됩니다. 안전한 곳에 보관하세요.
+              아래 API 키는 보안상 <b>지금 한 번만</b> 표시됩니다. 안전한 곳에
+              보관하세요.
             </p>
 
             <div className="mt-4 rounded-lg border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/5 p-3">
-              <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mb-1">API Key</div>
+              <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mb-1">
+                API Key
+              </div>
               <div className="flex items-center gap-2">
                 <code className="flex-1 break-all text-sm">
-                  {keyVisible ? issuedKey : "•".repeat(Math.max(issuedKey.length, 8))}
+                  {keyVisible
+                    ? issuedKey
+                    : "•".repeat(Math.max(issuedKey.length, 8))}
                 </code>
                 <button
                   onClick={() => setKeyVisible((v) => !v)}
@@ -532,7 +586,8 @@ export default function RegisterPage() {
             </div>
 
             <div className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-              • 키를 분실하면 재발급이 필요합니다. <br />• 다른 사람과 공유하지 마세요.
+              • 키를 분실하면 재발급이 필요합니다. <br />• 다른 사람과 공유하지
+              마세요.
             </div>
 
             <div className="mt-5 flex justify-end">
@@ -551,10 +606,18 @@ export default function RegisterPage() {
 }
 
 /** 공통 필드 래퍼 */
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="block">
-      <span className="block text-[11px] mb-1 tracking-wider text-white/70">{label}</span>
+      <span className="block text-[11px] mb-1 tracking-wider text-white/70">
+        {label}
+      </span>
       {children}
     </label>
   );

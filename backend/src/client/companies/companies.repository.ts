@@ -1,7 +1,11 @@
-import { Injectable, Inject  } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { db } from '../../db/client';
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { companies, business_numbers, company_subscriptions } from '../../db/schema'; 
+import {
+  companies,
+  business_numbers,
+  company_subscriptions,
+} from '../../db/schema';
 
 export type CompanyRow = typeof companies.$inferSelect;
 export type CompanySubscriptionRow = typeof company_subscriptions.$inferSelect;
@@ -17,9 +21,27 @@ export class CompaniesRepository {
     });
   }
 
+  // 완화 모드: 이메일/상호만 중복 검사
+  findDuplicateLoose(email: string, name: string) {
+    return db.query.companies.findFirst({
+      where: (c, { sql }) => sql`${c.email} = ${email} or ${c.name} = ${name}`,
+      columns: { id: true },
+    });
+  }
+
   async existsBizno(bizno: string): Promise<boolean> {
     const row = await db.query.business_numbers.findFirst({
-      where: (b, { sql }) => sql`regexp_replace(${b.number}, '\D', '', 'g') = ${bizno}`,
+      where: (b, { sql }) =>
+        sql`regexp_replace(${b.number}, '\\D', '', 'g') = ${bizno}`,
+      columns: { id: true },
+    });
+    return !!row;
+  }
+
+  // 회사 테이블에서 사업자번호 중복 확인(고유 제약 회피용)
+  async existsCompanyBizno(bizno: string): Promise<boolean> {
+    const row = await db.query.companies.findFirst({
+      where: (c, { sql }) => sql`${c.business_number} = ${bizno}`,
       columns: { id: true },
     });
     return !!row;
@@ -40,7 +62,7 @@ export class CompaniesRepository {
 
   findById(id: number) {
     return db.query.companies.findFirst({
-      where: (c, { sql }) => sql`${c.id} = ${id}`,  
+      where: (c, { sql }) => sql`${c.id} = ${id}`,
     });
   }
 
@@ -49,7 +71,7 @@ export class CompaniesRepository {
       where: (c, { sql }) => sql`${c.email} = ${email}`,
     });
   }
-  // api 재발급 
+  // api 재발급
   async updateApiKeyByCompanyId(
     companyId: number | string,
     data: {
@@ -59,25 +81,46 @@ export class CompaniesRepository {
       api_key_version?: number | null;
     },
   ) {
-    const id = typeof companyId === 'string' ? parseInt(companyId, 10) : companyId; // ← number로
+    const id =
+      typeof companyId === 'string' ? parseInt(companyId, 10) : companyId; // ← number로
     await this.db
       .update(companies)
       .set({
         api_key_hash: data.api_key_hash,
-        ...(data.api_key_id      !== undefined ? { api_key_id: data.api_key_id } : {}),
-        ...(data.api_key_last4   !== undefined ? { api_key_last4: data.api_key_last4 } : {}),
-        ...(data.api_key_version !== undefined ? { api_key_version: data.api_key_version } : {}),
-        api_key_rotated_at: sql`now()`,   
+        ...(data.api_key_id !== undefined
+          ? { api_key_id: data.api_key_id }
+          : {}),
+        ...(data.api_key_last4 !== undefined
+          ? { api_key_last4: data.api_key_last4 }
+          : {}),
+        ...(data.api_key_version !== undefined
+          ? { api_key_version: data.api_key_version }
+          : {}),
+        api_key_rotated_at: sql`now()`,
       })
-      .where(eq(companies.id, id));      
+      .where(eq(companies.id, id));
   }
 
   // 스마트 계정 주소 업데이트
-  async updateSmartAccountAddress(companyId: number, smartAccountAddress: string) {
+  async updateSmartAccountAddress(
+    companyId: number,
+    smartAccountAddress: string,
+  ) {
     await this.db
       .update(companies)
       .set({
         smart_account_address: smartAccountAddress,
+        updated_at: sql`now()`,
+      })
+      .where(eq(companies.id, companyId));
+  }
+
+  // XRPL 주소 저장
+  async updateXrplAddress(companyId: number, xrplAddress: string) {
+    await this.db
+      .update(companies)
+      .set({
+        xrpl_address: xrplAddress,
         updated_at: sql`now()`,
       })
       .where(eq(companies.id, companyId));

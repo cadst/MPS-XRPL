@@ -1,5 +1,10 @@
 // apps/backend/src/client/me/me.service.ts
-import { Inject, Injectable, Logger, BadRequestException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  BadRequestException,
+} from '@nestjs/common';
 import dayjs from 'dayjs';
 import { sql, eq, desc, and, gt } from 'drizzle-orm';
 import {
@@ -12,20 +17,26 @@ import {
   music_plays,
 } from '../../db/schema';
 import { REWARD_CODE_EARNING } from './dto/me-rewards.dto';
+import { XrplService } from '../xrpl/xrpl.service';
 
 const TZ = 'Asia/Seoul';
 
 @Injectable()
 export class MeService {
   private readonly logger = new Logger(MeService.name);
-  constructor(@Inject('DB') private readonly db: any) { }
+  constructor(
+    @Inject('DB') private readonly db: any,
+    private readonly xrpl?: XrplService,
+  ) {}
 
   private PLAN_PRICE: Record<'standard' | 'business', number> = {
     standard: 19000,
     business: 29000,
   };
 
-  private buildSelect<T extends Record<string, any>>(entries: Array<[keyof T & string, any]>): T {
+  private buildSelect<T extends Record<string, any>>(
+    entries: Array<[keyof T & string, any]>,
+  ): T {
     const filtered = entries.filter(([, v]) => v !== undefined && v !== null);
     const obj = Object.fromEntries(filtered) as T;
     for (const [k, v] of Object.entries(obj)) {
@@ -47,6 +58,7 @@ export class MeService {
       ['homepage_url', companies.homepage_url],
       ['profile_image_url', companies.profile_image_url],
       ['smart_account_address', companies.smart_account_address],
+      ['xrpl_address', (companies as any).xrpl_address],
       ['total_rewards_earned', companies.total_rewards_earned],
       ['total_rewards_used', companies.total_rewards_used],
     ]);
@@ -54,11 +66,11 @@ export class MeService {
     const [company] = await this.db
       .select(companySelect)
       .from(companies)
-      .where(eq(companies.id, (companyId)))
+      .where(eq(companies.id, companyId))
       .limit(1);
 
-    const reservedCol =
-      (company_subscriptions as any).reserved_mileage_next_payment as any | undefined;
+    const reservedCol = (company_subscriptions as any)
+      .reserved_mileage_next_payment as any | undefined;
 
     const subSelect = {
       id: company_subscriptions.id,
@@ -73,7 +85,10 @@ export class MeService {
       .select(subSelect)
       .from(company_subscriptions)
       .where(eq(company_subscriptions.company_id, companyId))
-      .orderBy(desc(company_subscriptions.end_date), desc(company_subscriptions.start_date))
+      .orderBy(
+        desc(company_subscriptions.end_date),
+        desc(company_subscriptions.start_date),
+      )
       .limit(1);
 
     const usingCountP = this.db.execute(sql`
@@ -101,7 +116,10 @@ export class MeService {
       LIMIT 10
     `);
 
-    const [usingCountRow, usingRows] = await Promise.all([usingCountP, usingListP]);
+    const [usingCountRow, usingRows] = await Promise.all([
+      usingCountP,
+      usingListP,
+    ]);
 
     const earned = Number(company?.total_rewards_earned ?? 0);
     const used = Number(company?.total_rewards_used ?? 0);
@@ -111,49 +129,57 @@ export class MeService {
     const end = sub?.end_date ? dayjs(sub.end_date) : null;
     const remainingDays = end ? Math.max(0, end.diff(today, 'day')) : null;
 
-    const planPrice = sub?.tier && this.PLAN_PRICE[sub.tier as 'standard' | 'business'];
+    const planPrice =
+      sub?.tier && this.PLAN_PRICE[sub.tier as 'standard' | 'business'];
     const capByPlan = planPrice ? Math.floor(planPrice * 0.3) : 0;
-    const maxUsableNextPayment = Math.max(0, Math.min(rewardBalance, capByPlan));
+    const maxUsableNextPayment = Math.max(
+      0,
+      Math.min(rewardBalance, capByPlan),
+    );
     const reservedNext = Number((sub as any)?.reserved_next ?? 0);
 
-    const bigintReplacer = (_: string, v: any) => (typeof v === 'bigint' ? v.toString() : v);
-    this.logger.debug('getMe.company = ' + JSON.stringify(company, bigintReplacer));
+    const bigintReplacer = (_: string, v: any) =>
+      typeof v === 'bigint' ? v.toString() : v;
+    this.logger.debug(
+      'getMe.company = ' + JSON.stringify(company, bigintReplacer),
+    );
 
     return {
       company: company
         ? {
-          id: Number(company.id),
-          name: company.name,
-          grade: company.grade,
-          ceo_name: company.ceo_name ?? null,
-          phone: company.phone ?? null,
-          homepage_url: company.homepage_url ?? null,
-          profile_image_url: company.profile_image_url ?? null,
-          smart_account_address: company.smart_account_address ?? null,
-          total_rewards_earned: earned,
-          total_rewards_used: used,
-          reward_balance: rewardBalance,
-        }
+            id: Number(company.id),
+            name: company.name,
+            grade: company.grade,
+            ceo_name: company.ceo_name ?? null,
+            phone: company.phone ?? null,
+            homepage_url: company.homepage_url ?? null,
+            profile_image_url: company.profile_image_url ?? null,
+            smart_account_address: company.smart_account_address ?? null,
+            xrpl_address: (company as any).xrpl_address ?? null,
+            total_rewards_earned: earned,
+            total_rewards_used: used,
+            reward_balance: rewardBalance,
+          }
         : null,
 
       subscription: sub
         ? {
-          plan: sub.tier,
-          status: end && end.isAfter(today) ? 'active' : 'none',
-          start_date: sub.start_date,
-          end_date: sub.end_date,
-          next_billing_at: sub.end_date ?? null,
-          remaining_days: remainingDays,
-          reserved_rewards_next_payment: reservedNext,
-          max_usable_next_payment: maxUsableNextPayment,
-        }
+            plan: sub.tier,
+            status: end && end.isAfter(today) ? 'active' : 'none',
+            start_date: sub.start_date,
+            end_date: sub.end_date,
+            next_billing_at: sub.end_date ?? null,
+            remaining_days: remainingDays,
+            reserved_rewards_next_payment: reservedNext,
+            max_usable_next_payment: maxUsableNextPayment,
+          }
         : {
-          plan: 'free',
-          status: 'none',
-          remaining_days: null,
-          reserved_rewards_next_payment: 0,
-          max_usable_next_payment: 0,
-        },
+            plan: 'free',
+            status: 'none',
+            remaining_days: null,
+            reserved_rewards_next_payment: 0,
+            max_usable_next_payment: 0,
+          },
 
       api_key: { last4: null },
 
@@ -174,26 +200,38 @@ export class MeService {
 
   async updateProfile(
     companyId: number,
-    dto: { ceo_name?: string; phone?: string; homepage_url?: string; profile_image_url?: string },
+    dto: {
+      ceo_name?: string;
+      phone?: string;
+      homepage_url?: string;
+      profile_image_url?: string;
+    },
   ) {
     const setPayload: Record<string, any> = {
       ...(dto.ceo_name !== undefined ? { ceo_name: dto.ceo_name } : {}),
       ...(dto.phone !== undefined ? { phone: dto.phone } : {}),
-      ...(dto.homepage_url !== undefined ? { homepage_url: dto.homepage_url } : {}),
-      ...(dto.profile_image_url !== undefined ? { profile_image_url: dto.profile_image_url } : {}),
-      ...(('updated_at' in companies) ? { updated_at: sql`now()` } : {}),
+      ...(dto.homepage_url !== undefined
+        ? { homepage_url: dto.homepage_url }
+        : {}),
+      ...(dto.profile_image_url !== undefined
+        ? { profile_image_url: dto.profile_image_url }
+        : {}),
+      ...('updated_at' in companies ? { updated_at: sql`now()` } : {}),
     };
 
     if (Object.keys(setPayload).length) {
       await this.db
         .update(companies)
         .set(setPayload)
-        .where(eq(companies.id, (companyId)));
+        .where(eq(companies.id, companyId));
     }
     return this.getMe(companyId);
   }
 
-  async subscribe(companyId: number, dto: { tier: 'standard' | 'business'; use_rewards: number }) {
+  async subscribe(
+    companyId: number,
+    dto: { tier: 'standard' | 'business'; use_rewards: number },
+  ) {
     const price = this.PLAN_PRICE[dto.tier];
     if (!price) throw new BadRequestException('invalid tier');
 
@@ -241,7 +279,7 @@ export class MeService {
           total_rewards_used: sql`${companies.total_rewards_used} + ${use}`,
           updated_at: now,
         } as any)
-        .where(eq(companies.id, (companyId)));
+        .where(eq(companies.id, companyId));
 
       return this.getMe(companyId);
     });
@@ -254,8 +292,8 @@ export class MeService {
     const companyId = companyIdNum; // company_subscriptions.company_id는 number 모드
 
     return await this.db.transaction(async (tx: any) => {
-      const reservedCol =
-        (company_subscriptions as any).reserved_mileage_next_payment as any | undefined;
+      const reservedCol = (company_subscriptions as any)
+        .reserved_mileage_next_payment as any | undefined;
 
       const subSelect = {
         id: company_subscriptions.id,
@@ -268,7 +306,12 @@ export class MeService {
       const [sub] = await tx
         .select(subSelect)
         .from(company_subscriptions)
-        .where(and(eq(company_subscriptions.company_id, companyId), gt(company_subscriptions.end_date, sql`now()`)))
+        .where(
+          and(
+            eq(company_subscriptions.company_id, companyId),
+            gt(company_subscriptions.end_date, sql`now()`),
+          ),
+        )
         .orderBy(desc(company_subscriptions.end_date))
         .limit(1);
 
@@ -290,10 +333,13 @@ export class MeService {
       const balance = Math.max(0, earned - used);
 
       const planPrice = this.PLAN_PRICE[sub.tier as 'standard' | 'business'];
-      if (!planPrice) throw new BadRequestException('invalid plan for reservation');
+      if (!planPrice)
+        throw new BadRequestException('invalid plan for reservation');
       const cap = Math.floor(planPrice * 0.3);
 
-      const requested = dto.reset ? 0 : Math.max(0, Math.floor(Number(dto.useMileage || 0)));
+      const requested = dto.reset
+        ? 0
+        : Math.max(0, Math.floor(Number(dto.useMileage || 0)));
       const maxUsable = Math.max(0, Math.min(balance, cap));
       const clamped = Math.min(requested, maxUsable);
 
@@ -345,7 +391,9 @@ export class MeService {
       sel.total_paid_amount = (company_subscriptions as any).total_paid_amount;
     }
     if ((company_subscriptions as any).actual_paid_amount) {
-      sel.actual_paid_amount = (company_subscriptions as any).actual_paid_amount;
+      sel.actual_paid_amount = (
+        company_subscriptions as any
+      ).actual_paid_amount;
     }
     if ((company_subscriptions as any).discount_amount) {
       sel.discount_amount = (company_subscriptions as any).discount_amount;
@@ -356,7 +404,8 @@ export class MeService {
       .from(company_subscriptions)
       .where(eq(company_subscriptions.company_id, companyId as any))
       .orderBy(
-        (sel as any).created_at ? desc((company_subscriptions as any).created_at)
+        (sel as any).created_at
+          ? desc((company_subscriptions as any).created_at)
           : desc(company_subscriptions.start_date),
         desc(company_subscriptions.id),
       )
@@ -372,7 +421,10 @@ export class MeService {
     const purchases = rows.map((r: any) => ({
       id: String(r.id),
       date: fmt(r.start_date ?? r.created_at),
-      item: String(r.tier ?? '').toLowerCase() === 'business' ? 'Business 월 구독' : 'Standard 월 구독',
+      item:
+        String(r.tier ?? '').toLowerCase() === 'business'
+          ? 'Business 월 구독'
+          : 'Standard 월 구독',
       amount: toNum(r.actual_paid_amount ?? r.total_paid_amount),
     }));
 
@@ -394,7 +446,11 @@ export class MeService {
    * ========================= */
 
   /** /me/rewards : 아코디언/상단 요약/최근 N일 */
-  async getRewardsSummary(params: { companyId: number; days?: number; musicId?: number }) {
+  async getRewardsSummary(params: {
+    companyId: number;
+    days?: number;
+    musicId?: number;
+  }) {
     const { companyId, musicId } = params;
     const days = Number(params.days ?? 7);
     if (!companyId) throw new BadRequestException('companyId missing');
@@ -416,11 +472,24 @@ export class MeService {
       ${musicFilter}
       ORDER BY m.id
     `);
-    const musicRows: Array<{ music_id: number; title: string | null; cover_image_url: string | null }> =
-      (musicsRes as any).rows ?? [];
+    const musicRows: Array<{
+      music_id: number;
+      title: string | null;
+      cover_image_url: string | null;
+    }> = (musicsRes as any).rows ?? [];
 
     if (musicRows.length === 0) {
-      return { month, days, items: [], totals: { monthBudget: 0, monthSpent: 0, monthRemaining: 0, lifetimeExtracted: 0 } };
+      return {
+        month,
+        days,
+        items: [],
+        totals: {
+          monthBudget: 0,
+          monthSpent: 0,
+          monthRemaining: 0,
+          lifetimeExtracted: 0,
+        },
+      };
     }
 
     const items = await Promise.all(
@@ -436,14 +505,20 @@ export class MeService {
           LIMIT 1
         `);
         const plan = (planRes as any).rows?.[0] ?? null;
-        const rewardPerPlay = plan?.reward_per_play ? Number(plan.reward_per_play) : null;
+        const rewardPerPlay = plan?.reward_per_play
+          ? Number(plan.reward_per_play)
+          : null;
         const totalRewardCount = plan?.total_reward_count ?? null;
         const remainingRewardCount = plan?.remaining_reward_count ?? null;
 
         const monthBudget =
-          rewardPerPlay != null && totalRewardCount != null ? rewardPerPlay * totalRewardCount : 0;
+          rewardPerPlay != null && totalRewardCount != null
+            ? rewardPerPlay * totalRewardCount
+            : 0;
         const remainingByPlanAmount =
-          rewardPerPlay != null && remainingRewardCount != null ? rewardPerPlay * remainingRewardCount : null;
+          rewardPerPlay != null && remainingRewardCount != null
+            ? rewardPerPlay * remainingRewardCount
+            : null;
 
         // 이번달 사용액/누적/최근사용/시작일
         const aggRes = await this.db.execute(sql`
@@ -508,7 +583,8 @@ export class MeService {
           GROUP BY d
           ORDER BY d
         `);
-        const dailyRows: Array<{ date: string; amount: string }> = (dailyRes as any).rows ?? [];
+        const dailyRows: Array<{ date: string; amount: string }> =
+          (dailyRes as any).rows ?? [];
 
         return {
           musicId: mid,
@@ -526,7 +602,10 @@ export class MeService {
           remainingByPlanAmount,
           lifetimeExtracted,
           lastUsedAt,
-          daily: dailyRows.map((x) => ({ date: x.date, amount: Number(x.amount) })),
+          daily: dailyRows.map((x) => ({
+            date: x.date,
+            amount: Number(x.amount),
+          })),
           leadersEarned: lifetimeExtracted,
         };
       }),
@@ -540,18 +619,29 @@ export class MeService {
         a.lifetimeExtracted += x.lifetimeExtracted;
         return a;
       },
-      { monthBudget: 0, monthSpent: 0, monthRemaining: 0, lifetimeExtracted: 0 },
+      {
+        monthBudget: 0,
+        monthSpent: 0,
+        monthRemaining: 0,
+        lifetimeExtracted: 0,
+      },
     );
 
     return { month, days, items, totals };
   }
 
   /** /me/plays : 모달 리스트(유효/무효 포함, 리워드 join=earning만) */
-  async getPlays(params: { companyId: number; musicId: number; page?: number; limit?: number }) {
+  async getPlays(params: {
+    companyId: number;
+    musicId: number;
+    page?: number;
+    limit?: number;
+  }) {
     const { companyId, musicId } = params;
     const page = Number(params.page ?? 1);
     const limit = Number(params.limit ?? 20);
-    if (!companyId || !musicId) throw new BadRequestException('companyId/musicId missing');
+    if (!companyId || !musicId)
+      throw new BadRequestException('companyId/musicId missing');
     const offset = (page - 1) * limit;
 
     // 총 개수
@@ -585,7 +675,9 @@ export class MeService {
     const rows = (listRes as any).rows ?? [];
 
     return {
-      page, limit, total,
+      page,
+      limit,
+      total,
       items: rows.map((r) => ({
         playId: r.play_id,
         playedAt: r.played_at,
@@ -623,5 +715,57 @@ export class MeService {
     });
 
     return this.getMe(companyId);
+  }
+
+  // 리워드를 XRP로 전환하여 송금
+  async convertRewards(
+    companyId: number,
+    body: { amount: number; destination?: string; as?: 'xrp' | 'iou' },
+  ) {
+    const amount = Math.max(0, Math.floor(Number(body.amount || 0)));
+    if (!amount) throw new BadRequestException('amount invalid');
+
+    // 환산 비율 (예: 1 리워드 = 1 XRP) - 운영정책에 맞게 조정
+    const ratio = 1;
+
+    return await this.db.transaction(async (tx: any) => {
+      // 보유 리워드 확인 및 잠금
+      const { rows } = await tx.execute(sql`
+        SELECT total_rewards_earned, total_rewards_used, xrpl_address
+        FROM ${companies}
+        WHERE id = ${BigInt(companyId)}
+        FOR UPDATE
+      `);
+      const c = rows?.[0];
+      if (!c) throw new BadRequestException('company not found');
+
+      const earned = Number(c.total_rewards_earned ?? 0);
+      const used = Number(c.total_rewards_used ?? 0);
+      const balance = Math.max(0, earned - used);
+      if (amount > balance)
+        throw new BadRequestException('insufficient rewards');
+
+      const destination = body.destination || c.xrpl_address;
+      if (!destination)
+        throw new BadRequestException('XRPL destination missing');
+
+      // 회계상 사용 처리 (successed로 간주)
+      await tx
+        .update(companies)
+        .set({
+          total_rewards_used: sql`${companies.total_rewards_used} + ${amount}`,
+        } as any)
+        .where(eq(companies.id, companyId));
+
+      // 블록체인 전송 (관리자 월렛에서 출금)
+      if (!this.xrpl) throw new BadRequestException('XRPL service unavailable');
+      const xrpAmount = String(amount * ratio);
+      const sent = await this.xrpl.sendXrp({
+        destination,
+        amountXrp: xrpAmount,
+      });
+
+      return { ok: true, destination, amount, xrpAmount, txHash: sent.hash };
+    });
   }
 }
