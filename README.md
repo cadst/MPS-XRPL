@@ -14,7 +14,17 @@ MPS는 사용자의 활동(예: 음원 스트리밍, 창작)에 대한 보상으
 
 ## ✨ 주요 기능 및 흐름
 
+MPS에 적용된 XRPL 기능은 `backend/src/client/xrpl` 폴더에서 확인할 수 있습니다.
+
+
 ### 1. XRPL 지갑 생성 (Wallet Creation)
+
+```js
+async generateWallet(): Promise<{ address: string; seed: string }> {
+    const wallet = Wallet.generate();
+    return { address: wallet.address, seed: wallet.seed! };
+  }
+```
 
 <img width="1424" height="661" alt="스크린샷 2025-09-20 오후 4 29 26" src="https://github.com/user-attachments/assets/3151d545-2021-4410-820a-d3b2eeebffbd" />
 
@@ -23,6 +33,34 @@ MPS는 사용자의 활동(예: 음원 스트리밍, 창작)에 대한 보상으
 - **시드 키 1회 노출**: 보안을 위해, 지갑의 소유권을 증명하는 **시드(`seed`)는 회원가입 직후 응답으로 단 한 번만 사용자에게 노출**됩니다. 서버는 시드 값을 저장하지 않으므로, 사용자는 이를 반드시 안전한 곳에 별도로 보관해야 합니다.
 
 ### 2. 리워드 → XRP 전환 (Reward to XRP Conversion)
+
+```js
+ // 리워드 → XRP 전환 전송
+  async sendXrp(params: { destination: string; amountXrp: string }) {
+    if (!this.adminSeed)
+      throw new Error('XRPL_ADMIN_SEED가 설정되어 있지 않습니다.');
+    const client = await this.getClient();
+    try {
+      const admin = Wallet.fromSeed(this.adminSeed.trim());
+      const tx: Payment = {
+        TransactionType: 'Payment',
+        Account: admin.address,
+        Destination: params.destination,
+        Amount: String(Math.round(Number(params.amountXrp) * 1_000_000)), // drops
+      };
+      const prepared = await client.autofill(tx);
+      const signed = admin.sign(prepared);
+      const result = await client.submitAndWait(signed.tx_blob);
+      const hash =
+        (result as any)?.result?.hash || (result as any)?.tx_json?.hash;
+      const validated = !!(result as any)?.result?.validated_ledger_index;
+      this.logger.log(`XRPL Payment 성공 tx=${hash}`);
+      return { hash, validated, result };
+    } finally {
+      // 연결은 재사용
+    }
+  }
+```
 
 <img width="1412" height="667" alt="스크린샷 2025-09-20 오후 5 09 10" src="https://github.com/user-attachments/assets/3bfd2adc-b436-4fd6-97f9-5dc97496b41b" />
 
@@ -66,124 +104,3 @@ MPS는 사용자의 활동(예: 음원 스트리밍, 창작)에 대한 보상으
   - `fetchMeOverview`: 기존 API 어댑터에 `xrplAddress` 필드를 반영하여 상태를 관리합니다.
   - `createXrplWallet()`: "XRPL 지갑 생성" 버튼과 연결되는 API 요청 함수입니다.
   - `convertRewards()`: "리워드 → XRP 전환" 폼 제출 시 호출되는 API 요청 함수입니다.
-
- ## 🔑 환경변수 설정 가이드 (.env)
-
-이 프로젝트를 실행하기 위해서는 각 환경에 맞는 `.env` 파일 설정이 필요합니다. `.env` 파일은 민감한 정보를 코드로부터 분리하여 안전하게 관리하기 위해 사용됩니다. **주의: `.env` 파일은 절대로 Git과 같은 버전 관리 시스템에 포함시키면 안 됩니다.**
-
-### 1. Admin Frontend
-
-관리자 페이지 프론트엔드 설정입니다.
-
-- **위치**: `frontend/admin/.env`
-- **내용**:
-
-```env
-# 백엔드 API 서버의 전체 주소
-NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
-```
-
-### 2. Client Frontend
-
-일반 사용자용 프론트엔드 설정입니다. `.env.local` 파일을 생성하여 아래 내용을 작성합니다.
-
-- **위치**: `frontend/client/.env.local`
-- **내용**:
-
-```env
-# 연결할 백엔드 API 서버의 전체 주소
-# 예: [https://api.your-domain.com](https://api.your-domain.com)
-NEXT_PUBLIC_API_BASE=http://localhost:4000
-```
-
-### 3. Backend
-
-백엔드 서버 설정입니다. 가장 민감한 정보들을 포함하고 있으므로, 실제 배포 시에는 반드시 모든 <...> 값을 실제 운영 환경에 맞게 안전하게 변경해야 합니다.
-
-- **위치**: `backend/.env`
-- **내용**:
-
-```env
-# ---------------------------------
-# 기본 서버 설정 (필수)
-# ---------------------------------
-# 실제 운영 환경의 데이터베이스 연결 주소
-DATABASE_URL=postgres://<USER>:<PASSWORD>@<HOST>:<PORT>/<DB_NAME>
-# 서버가 실행될 포트 번호
-PORT=4000
-# 실행 환경 (development | production)
-NODE_ENV=production
-# Admin 클라이언트의 배포 주소 (CORS 등에서 사용)
-FRONTEND_URL=https://<ADMIN_CLIENT_DOMAIN>
-
-# ---------------------------------
-# JWT (JSON Web Token) 설정 (필수)
-# ---------------------------------
-# 토큰 서명에 사용할 비밀 키 (매우 길고 무작위적인 문자열로 교체)
-JWT_SECRET=<GENERATE_A_VERY_LONG_AND_RANDOM_SECRET_HERE>
-JWT_ISS=mps
-JWT_AUD=mps-client
-# 토큰 만료 시간
-JWT_EXPIRES_IN=1h
-
-# ---------------------------------
-# 관리자 계정 설정 (필수)
-# ---------------------------------
-ADMIN_ID=<SET_YOUR_ADMIN_ID>
-ADMIN_PW=<SET_A_STRONG_ADMIN_PASSWORD>
-
-# ---------------------------------
-# API 키 설정 (필수)
-# ---------------------------------
-# API 키 암호화에 사용할 salt 값 (무작위 문자열)
-API_KEY_PEPPER=<GENERATE_A_STRONG_RANDOM_STRING_FOR_PEPPER>
-API_KEY_PREFIX=sk_live
-API_KEY_VERSION=1
-
-# ---------------------------------
-# 파일 업로드 경로 설정
-# ---------------------------------
-MUSIC_BASE_DIR=uploads/music
-LYRICS_BASE_DIR=uploads/lyrics
-
-# ---------------------------------
-# 블록체인 및 컨트랙트 설정 (필수)
-# ---------------------------------
-# Sepolia 테스트넷 Infura RPC 엔드포인트
-INFURA_RPC=[https://sepolia.infura.io/v3/](https://sepolia.infura.io/v3/)<YOUR_INFURA_PROJECT_ID>
-# 트랜잭션 서명에 사용할 서버 지갑의 개인 키 (절대 외부에 노출 금지!)
-PRIVATE_KEY=<YOUR_SERVER_WALLET_PRIVATE_KEY>
-# 서버 지갑 주소
-WALLET_ADDRESS=<YOUR_SERVER_WALLET_ADDRESS>
-
-# 배포된 스마트 컨트랙트 주소
-EntryPoint=<YOUR_ENTRYPOINT_CONTRACT_ADDRESS>
-Paymaster=<YOUR_PAYMASTER_CONTRACT_ADDRESS>
-SmartAccountFactory=<YOUR_SMARTACCOUNTFACTORY_CONTRACT_ADDRESS>
-RewardToken=<YOUR_REWARDTOKEN_CONTRACT_ADDRESS>
-RecordUsage=<YOUR_RECORDUSAGE_CONTRACT_ADDRESS>
-REWARD_TOKEN_CONTRACT_ADDRESS=<YOUR_REWARD_TOKEN_CONTRACT_ADDRESS>
-RECORD_USAGE_CONTRACT_ADDRESS=<YOUR_RECORD_USAGE_CONTRACT_ADDRESS>
-
-
-# ---------------------------------
-# 외부 API 설정 (선택/필요시)
-# ---------------------------------
-# 사업자등록번호 진위확인 API 종류
-BIZNO_VERIFIER=HYBRID
-
-# ODCloud 국세청 API
-ODCLOUD_BASE_URL=[https://api.odcloud.kr/api](https://api.odcloud.kr/api)
-ODCLOUD_SERVICE_KEY=<YOUR_ODCLOUD_API_SERVICE_KEY>
-ODCLOUD_SERVICE_KEY_ENC=<YOUR_ODCLOUD_ENCODED_SERVICE_KEY>
-ODCLOUD_RETURN_TYPE=JSON
-
-# OpenAI API
-OPENAI_API_KEY=<YOUR_OPENAI_API_KEY>
-
-# ---------------------------------
-# 기타 설정
-# ---------------------------------
-TAGS_AUTO_NORMALIZE=1
-TAGS_NORMALIZE_LIMIT=100
-```
