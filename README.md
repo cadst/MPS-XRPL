@@ -16,11 +16,18 @@ MPS는 사용자의 활동(예: 음원 스트리밍, 창작)에 대한 보상으
 
 ### 1. XRPL 지갑 생성 (Wallet Creation)
 
+<img width="1424" height="661" alt="스크린샷 2025-09-20 오후 4 29 26" src="https://github.com/user-attachments/assets/3151d545-2021-4410-820a-d3b2eeebffbd" />
+
 - **자동 생성**: 사용자가 서비스에 **회원가입**을 완료하면, 서버는 자동으로 해당 사용자를 위한 고유한 XRPL 지갑(주소 및 시드)을 생성합니다.
 - **데이터베이스 저장**: 생성된 지갑 주소(`address`)는 사용자의 정보와 함께 데이터베이스(`companies.xrpl_address`)에 안전하게 저장됩니다.
 - **시드 키 1회 노출**: 보안을 위해, 지갑의 소유권을 증명하는 **시드(`seed`)는 회원가입 직후 응답으로 단 한 번만 사용자에게 노출**됩니다. 서버는 시드 값을 저장하지 않으므로, 사용자는 이를 반드시 안전한 곳에 별도로 보관해야 합니다.
 
 ### 2. 리워드 → XRP 전환 (Reward to XRP Conversion)
+
+<img width="1412" height="667" alt="스크린샷 2025-09-20 오후 5 09 10" src="https://github.com/user-attachments/assets/3bfd2adc-b436-4fd6-97f9-5dc97496b41b" />
+
+<img width="1102" height="596" alt="스크린샷 2025-09-20 오후 5 09 26" src="https://github.com/user-attachments/assets/00e013a3-5be7-4781-8b21-09f1bb8ebf77" />
+
 
 - **전환 요청 API**: 사용자는 보유한 리워드를 XRP로 전환하기 위해 `POST /me/rewards/convert` 엔드포인트를 통해 요청을 보냅니다.
   - **입력값**: `{ amount: number, destination?: string }`
